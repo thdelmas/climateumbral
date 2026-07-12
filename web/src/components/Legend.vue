@@ -13,6 +13,7 @@ defineProps({ mode: String })
     <span><i style="background: rgb(150, 118, 220)" /> watched</span>
     <span><i style="background: rgb(61, 61, 68)" /> sealed</span>
     <span><i style="background: rgb(46, 107, 62)" /> green</span>
+    <span><i style="background: rgb(72, 118, 160)" /> water</span>
     <span><i class="mine-chip" /> yours</span>
   </div>
   <div v-else class="legend heat">

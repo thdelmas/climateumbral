@@ -1,5 +1,6 @@
 // Grid semantics shared with tools/fetch_grid.py and server/main.go:
-// 0-100 = % sealed (Copernicus IMD 2018, 10 m), 254 = sea, 255 = nodata.
+// 0-100 = % sealed (Copernicus IMD 2018, 10 m), 254 = water
+// (WAW permanent water or sea, merged server-side), 255 = nodata.
 export const SEA = 254
 export const NODATA = 255
 export const HARD_SEALED = 90

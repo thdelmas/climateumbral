@@ -32,6 +32,7 @@ const coords = computed(() => {
 
 const surface = computed(() => {
   if (props.value === null) return 'zoom in for ground truth'
+  if (props.value === 254) return 'water'
   if (props.value > 100) return 'no data'
   return `${props.value}% sealed`
 })
