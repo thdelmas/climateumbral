@@ -55,13 +55,13 @@ const emit = defineEmits(['mission'])
     <span>
       <strong>{{ pledgedM2.toLocaleString() }}</strong> m² pledged
     </span>
-    <span>
+    <span v-if="candidateCount">
       <strong>{{ candidateCount.toLocaleString() }}</strong>
-      candidates on the front line
+      candidates in view
     </span>
     <span v-if="nightAvg">
       <strong>+{{ nightAvg.toFixed(2) }}</strong> °C avg night heat
-      penalty (modeled)
+      penalty in view (modeled)
     </span>
     <span v-if="openedLabel" class="opened">{{ openedLabel }}</span>
   </div>

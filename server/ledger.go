@@ -23,8 +23,8 @@ const claimM2 = 100 // one 10 m pixel
 // token per act so its author can flip or erase it. No IPs, no
 // accounts. Erasure removes the record entirely.
 type claim struct {
-	X        int        `json:"x"`
-	Y        int        `json:"y"`
+	Pe       int        `json:"pe"`
+	Pn       int        `json:"pn"`
 	Name     string     `json:"name,omitempty"`
 	TS       time.Time  `json:"ts"`
 	Deadline time.Time  `json:"deadline"`
@@ -34,8 +34,8 @@ type claim struct {
 }
 
 type watch struct {
-	X     int       `json:"x"`
-	Y     int       `json:"y"`
+	Pe    int       `json:"pe"`
+	Pn    int       `json:"pn"`
 	Name  string    `json:"name,omitempty"`
 	TS    time.Time `json:"ts"`
 	Token string    `json:"token,omitempty"` // never in GET output
@@ -101,13 +101,13 @@ func (l *ledger) persist(path string) error {
 	return os.Rename(tmp, path)
 }
 
-// activeAt returns the claim currently holding (x, y): a live pledge
+// activeAt returns the claim currently holding (pe, pn): a live pledge
 // or a flip. Expired claims stay in the ledger as history but hold
 // nothing.
-func (l *ledger) activeAt(x, y int, now time.Time) *claim {
+func (l *ledger) activeAt(pe, pn int, now time.Time) *claim {
 	for i := range l.Claims {
 		c := &l.Claims[i]
-		if c.X == x && c.Y == y && c.status(now) != statusExpired {
+		if c.Pe == pe && c.Pn == pn && c.status(now) != statusExpired {
 			return c
 		}
 	}
@@ -121,16 +121,16 @@ func (l *ledger) activeSet(now time.Time) map[[2]int]bool {
 	for i := range l.Claims {
 		c := &l.Claims[i]
 		if c.status(now) != statusExpired {
-			set[[2]int{c.X, c.Y}] = true
+			set[[2]int{c.Pe, c.Pn}] = true
 		}
 	}
 	return set
 }
 
-func (l *ledger) watchesAt(x, y int) []watch {
+func (l *ledger) watchesAt(pe, pn int) []watch {
 	var out []watch
 	for _, w := range l.Watches {
-		if w.X == x && w.Y == y {
+		if w.Pe == pe && w.Pn == pn {
 			out = append(out, w)
 		}
 	}

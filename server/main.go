@@ -1,11 +1,15 @@
-// Tilewhip API: serves the sealed-% grid and keeps the game ledger.
+// Tilewhip API, V3: the whole of Europe is the board.
 //
-// The cascade rule is enforced here, not just in the UI: a pixel is
+// There is no local grid anymore. The visual map streams straight
+// from the EEA image service; this server owns the game: viewport
+// value rasters (proxied + cached), and the claims ledger keyed to
+// the continent-wide EPSG:3035 10 m pixel grid — pixel (pe, pn) =
+// floor(easting/10), floor(northing/10).
+//
+// The cascade rule is enforced against live upstream data: a pixel is
 // pledgeable only if it is hard-sealed (>=90%) and touches >=3
-// green-or-actively-claimed neighbours — the same "gray touching
-// green" detector the map shows, with live pledges and flips counting
-// as green so every claim can open its neighbours. Expired pledges
-// stop counting and their pixel returns to the pool.
+// green-or-actively-claimed neighbours; live pledges and flips count
+// as green. Expired pledges release their pixel.
 package main
 
 import (
@@ -14,6 +18,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -24,20 +29,17 @@ import (
 )
 
 const (
-	seaValue    = 254
-	nodataValue = 255
 	hardSealed  = 90 // >= this % imperviousness is claimable
 	greenMax    = 10 // <= this % imperviousness counts as green
 	minGreens   = 3  // neighbours needed to be a candidate
 	maxNameLen  = 40
 	maxPhotoLen = 500
+	maxRaster   = 512 // max viewport raster dimension
 	tokenHeader = "X-Tilewhip-Token"
 )
 
 type server struct {
-	grid []byte
-	w, h int
-	meta map[string]any
+	eea *eeaClient
 
 	mu         sync.Mutex
 	ledger     *ledger
@@ -45,74 +47,29 @@ type server struct {
 	expiry     time.Duration
 }
 
-func load(dataDir, name string, expiry time.Duration) (*server, error) {
-	metaRaw, err := os.ReadFile(filepath.Join(dataDir, name+".json"))
-	if err != nil {
-		return nil, fmt.Errorf(
-			"read metadata (run `make fetch` first?): %w", err)
-	}
-	var meta map[string]any
-	if err := json.Unmarshal(metaRaw, &meta); err != nil {
-		return nil, fmt.Errorf("parse %s.json: %w", name, err)
-	}
-	// fetch_grid.py embeds the grid here; we serve it as binary instead.
-	delete(meta, "b64")
-	w, _ := meta["width"].(float64)
-	h, _ := meta["height"].(float64)
-	if w <= 0 || h <= 0 {
-		return nil, fmt.Errorf("%s.json has no width/height", name)
-	}
-	grid, err := os.ReadFile(filepath.Join(dataDir, name+".raw"))
-	if err != nil {
-		return nil, err
-	}
-	if len(grid) != int(w)*int(h) {
-		return nil, fmt.Errorf("%s.raw is %d bytes, expected %dx%d",
-			name, len(grid), int(w), int(h))
-	}
-
-	s := &server{
-		grid: grid, w: int(w), h: int(h), meta: meta,
-		ledgerPath: filepath.Join(dataDir, "claims.json"),
-		expiry:     expiry,
-	}
-	s.ledger, err = loadLedger(s.ledgerPath, expiry)
-	if err != nil {
-		return nil, fmt.Errorf("load ledger: %w", err)
-	}
-	return s, nil
-}
-
-func (s *server) inBounds(x, y int) bool {
-	return x >= 0 && y >= 0 && x < s.w && y < s.h
-}
-
-func (s *server) sealed(x, y int) bool {
-	v := s.grid[y*s.w+x]
-	return v >= hardSealed && v < seaValue
-}
-
-// pledgeable reports whether (x, y) can be pledged now. Callers hold
+// pledgeable reports whether continent pixel (pe, pn) can be pledged.
+// The 3x3 neighbourhood comes live from the EEA service; callers hold
 // s.mu.
-func (s *server) pledgeable(x, y int, now time.Time) error {
-	if !s.inBounds(x, y) {
-		return errors.New("out of bounds")
-	}
-	if !s.sealed(x, y) {
-		return errors.New("not hard-sealed (needs >=90% imperviousness)")
-	}
-	if c := s.ledger.activeAt(x, y, now); c != nil {
+func (s *server) pledgeable(pe, pn int, now time.Time) error {
+	if c := s.ledger.activeAt(pe, pn, now); c != nil {
 		return errors.New("already " + c.status(now))
+	}
+	nb, err := s.eea.neighborhood(pe, pn)
+	if err != nil {
+		return fmt.Errorf("upstream data unavailable: %w", err)
+	}
+	if v := nb[4]; v < hardSealed || v > 100 {
+		return errors.New("not hard-sealed (needs >=90% imperviousness)")
 	}
 	active := s.ledger.activeSet(now)
 	greens := 0
-	for dy := -1; dy <= 1; dy++ {
+	for dy := -1; dy <= 1; dy++ { // dy = +1 is north
 		for dx := -1; dx <= 1; dx++ {
-			nx, ny := x+dx, y+dy
-			if (dx == 0 && dy == 0) || !s.inBounds(nx, ny) {
+			if dx == 0 && dy == 0 {
 				continue
 			}
-			if active[[2]int{nx, ny}] || s.grid[ny*s.w+nx] <= greenMax {
+			v := nb[(1-dy)*3+(1+dx)] // row 0 = north
+			if v <= greenMax || active[[2]int{pe + dx, pn + dy}] {
 				greens++
 			}
 		}
@@ -133,8 +90,8 @@ func (s *server) persist() {
 // ---- views: what GET endpoints expose (never tokens) ----
 
 type claimView struct {
-	X        int        `json:"x"`
-	Y        int        `json:"y"`
+	Pe       int        `json:"pe"`
+	Pn       int        `json:"pn"`
 	Name     string     `json:"name,omitempty"`
 	TS       time.Time  `json:"ts"`
 	Deadline time.Time  `json:"deadline"`
@@ -144,15 +101,15 @@ type claimView struct {
 }
 
 type watchView struct {
-	X    int       `json:"x"`
-	Y    int       `json:"y"`
+	Pe   int       `json:"pe"`
+	Pn   int       `json:"pn"`
 	Name string    `json:"name,omitempty"`
 	TS   time.Time `json:"ts"`
 }
 
 func viewOf(c *claim, now time.Time) claimView {
 	return claimView{
-		X: c.X, Y: c.Y, Name: c.Name, TS: c.TS,
+		Pe: c.Pe, Pn: c.Pn, Name: c.Name, TS: c.TS,
 		Deadline: c.Deadline, Status: c.status(now),
 		Flipped: c.Flipped, Photo: c.Photo,
 	}
@@ -170,22 +127,61 @@ func writeErr(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
 }
 
-func pathXY(r *http.Request) (int, int, error) {
-	x, errX := strconv.Atoi(r.PathValue("x"))
-	y, errY := strconv.Atoi(r.PathValue("y"))
-	if errX != nil || errY != nil {
+func pathPePn(r *http.Request) (int, int, error) {
+	pe, errE := strconv.Atoi(r.PathValue("pe"))
+	pn, errN := strconv.Atoi(r.PathValue("pn"))
+	if errE != nil || errN != nil {
 		return 0, 0, errors.New("bad pixel coordinates in path")
 	}
-	return x, y, nil
+	return pe, pn, nil
 }
 
-func (s *server) handleMeta(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, s.meta)
-}
-
-func (s *server) handleGridRaw(w http.ResponseWriter, _ *http.Request) {
+// handleRaster proxies a viewport of raw sealed-% values in native
+// EPSG:3035, 10 m per pixel, bbox snapped to the pixel grid — so a
+// client raster index IS a continent pixel: pe = pe0+col,
+// pn = pn0+(h-1-row) (row 0 = north). This exactness is what makes
+// client-side candidates agree with server-side validation.
+// GET /api/raster?bbox=e0,n0,e1,n1  ->  w*h U8 bytes + X-Raster-*
+// headers. Cached upstream-side by the eeaClient.
+func (s *server) handleRaster(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(r.URL.Query().Get("bbox"), ",")
+	if len(parts) != 4 {
+		writeErr(w, http.StatusBadRequest, "need bbox=e0,n0,e1,n1 (3035)")
+		return
+	}
+	var b [4]float64
+	for i, p := range parts {
+		v, err := strconv.ParseFloat(p, 64)
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, "bad bbox number")
+			return
+		}
+		b[i] = v
+	}
+	e0 := int(math.Floor(b[0]/10)) * 10
+	n0 := int(math.Floor(b[1]/10)) * 10
+	e1 := int(math.Ceil(b[2]/10)) * 10
+	n1 := int(math.Ceil(b[3]/10)) * 10
+	wd, ht := (e1-e0)/10, (n1-n0)/10
+	if wd < 1 || ht < 1 || wd > maxRaster || ht > maxRaster {
+		writeErr(w, http.StatusBadRequest,
+			fmt.Sprintf("snapped size %dx%d not in 1..%d",
+				wd, ht, maxRaster))
+		return
+	}
+	bbox := fmt.Sprintf("%d,%d,%d,%d", e0, n0, e1, n1)
+	img, err := s.eea.values("3035", bbox, wd, ht)
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
 	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Write(s.grid)
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Header().Set("X-Raster-Bbox", bbox)
+	w.Header().Set("X-Raster-Size", fmt.Sprintf("%d,%d", wd, ht))
+	w.Header().Set("Access-Control-Expose-Headers",
+		"X-Raster-Bbox, X-Raster-Size")
+	w.Write(img)
 }
 
 func (s *server) handleGetLedger(w http.ResponseWriter, _ *http.Request) {
@@ -207,7 +203,7 @@ func (s *server) handleGetLedger(w http.ResponseWriter, _ *http.Request) {
 	watches := make([]watchView, 0, len(s.ledger.Watches))
 	for _, wa := range s.ledger.Watches {
 		watches = append(watches,
-			watchView{X: wa.X, Y: wa.Y, Name: wa.Name, TS: wa.TS})
+			watchView{Pe: wa.Pe, Pn: wa.Pn, Name: wa.Name, TS: wa.TS})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"claims":     claims,
@@ -219,8 +215,8 @@ func (s *server) handleGetLedger(w http.ResponseWriter, _ *http.Request) {
 
 func (s *server) handlePledge(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		X    int    `json:"x"`
-		Y    int    `json:"y"`
+		Pe   int    `json:"pe"`
+		Pn   int    `json:"pn"`
 		Name string `json:"name"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -235,12 +231,12 @@ func (s *server) handlePledge(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.pledgeable(req.X, req.Y, now); err != nil {
+	if err := s.pledgeable(req.Pe, req.Pn, now); err != nil {
 		writeErr(w, http.StatusConflict, err.Error())
 		return
 	}
 	c := claim{
-		X: req.X, Y: req.Y, Name: name, TS: now,
+		Pe: req.Pe, Pn: req.Pn, Name: name, TS: now,
 		Deadline: now.Add(s.expiry), Token: newToken(),
 	}
 	s.ledger.Claims = append(s.ledger.Claims, c)
@@ -252,7 +248,7 @@ func (s *server) handlePledge(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleFlip(w http.ResponseWriter, r *http.Request) {
-	x, y, err := pathXY(r)
+	pe, pn, err := pathPePn(r)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
@@ -274,7 +270,7 @@ func (s *server) handleFlip(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	c := s.ledger.activeAt(x, y, now)
+	c := s.ledger.activeAt(pe, pn, now)
 	if c == nil {
 		writeErr(w, http.StatusNotFound, "no live pledge on this pixel")
 		return
@@ -296,7 +292,7 @@ func (s *server) handleFlip(w http.ResponseWriter, r *http.Request) {
 // handleAbandon erases a claim entirely — both "abandon my pledge"
 // and the GDPR right to erasure are this one act.
 func (s *server) handleAbandon(w http.ResponseWriter, r *http.Request) {
-	x, y, err := pathXY(r)
+	pe, pn, err := pathPePn(r)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
@@ -306,7 +302,7 @@ func (s *server) handleAbandon(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.Unlock()
 	for i := range s.ledger.Claims {
 		c := &s.ledger.Claims[i]
-		if c.X == x && c.Y == y && token != "" && c.Token == token {
+		if c.Pe == pe && c.Pn == pn && token != "" && c.Token == token {
 			s.ledger.Claims = append(
 				s.ledger.Claims[:i], s.ledger.Claims[i+1:]...)
 			s.persist()
@@ -319,8 +315,8 @@ func (s *server) handleAbandon(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) handleWatch(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		X    int    `json:"x"`
-		Y    int    `json:"y"`
+		Pe   int    `json:"pe"`
+		Pn   int    `json:"pn"`
 		Name string `json:"name"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -335,30 +331,35 @@ func (s *server) handleWatch(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !s.inBounds(req.X, req.Y) {
-		writeErr(w, http.StatusConflict, "out of bounds")
+	nb, err := s.eea.neighborhood(req.Pe, req.Pn)
+	if err != nil {
+		writeErr(w, http.StatusBadGateway,
+			"upstream data unavailable: "+err.Error())
 		return
 	}
-	if !s.sealed(req.X, req.Y) {
-		writeErr(w, http.StatusConflict, "only sealed pixels need watching")
+	if v := nb[4]; v < hardSealed || v > 100 {
+		writeErr(w, http.StatusConflict,
+			"only sealed pixels need watching")
 		return
 	}
-	if c := s.ledger.activeAt(req.X, req.Y, now); c != nil &&
+	if c := s.ledger.activeAt(req.Pe, req.Pn, now); c != nil &&
 		c.status(now) == statusFlipped {
 		writeErr(w, http.StatusConflict, "already flipped")
 		return
 	}
-	wa := watch{X: req.X, Y: req.Y, Name: name, TS: now, Token: newToken()}
+	wa := watch{Pe: req.Pe, Pn: req.Pn, Name: name, TS: now,
+		Token: newToken()}
 	s.ledger.Watches = append(s.ledger.Watches, wa)
 	s.persist()
 	writeJSON(w, http.StatusCreated, map[string]any{
-		"watch": watchView{X: wa.X, Y: wa.Y, Name: wa.Name, TS: wa.TS},
+		"watch": watchView{Pe: wa.Pe, Pn: wa.Pn, Name: wa.Name,
+			TS: wa.TS},
 		"token": wa.Token,
 	})
 }
 
 func (s *server) handleUnwatch(w http.ResponseWriter, r *http.Request) {
-	x, y, err := pathXY(r)
+	pe, pn, err := pathPePn(r)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
@@ -368,7 +369,8 @@ func (s *server) handleUnwatch(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.Unlock()
 	for i := range s.ledger.Watches {
 		wa := &s.ledger.Watches[i]
-		if wa.X == x && wa.Y == y && token != "" && wa.Token == token {
+		if wa.Pe == pe && wa.Pn == pn && token != "" &&
+			wa.Token == token {
 			s.ledger.Watches = append(
 				s.ledger.Watches[:i], s.ledger.Watches[i+1:]...)
 			s.persist()
@@ -379,7 +381,8 @@ func (s *server) handleUnwatch(w http.ResponseWriter, r *http.Request) {
 	writeErr(w, http.StatusForbidden, "wrong or missing token")
 }
 
-func (s *server) handleLeaderboard(w http.ResponseWriter, _ *http.Request) {
+func (s *server) handleLeaderboard(w http.ResponseWriter,
+	_ *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	writeJSON(w, http.StatusOK,
@@ -402,8 +405,7 @@ func spaHandler(dist string) http.Handler {
 func main() {
 	addr := flag.String("addr", ":8080", "listen address")
 	dataDir := flag.String("data", "./data",
-		"directory with <grid>.raw/.json; claims.json lives here")
-	gridName := flag.String("grid", "bcn", "grid basename inside the data dir")
+		"directory holding claims.json")
 	dist := flag.String("dist", "",
 		"built frontend to serve at / (empty = API only)")
 	expiryDays := flag.Int("expiry-days", 90,
@@ -411,22 +413,27 @@ func main() {
 	flag.Parse()
 
 	expiry := time.Duration(*expiryDays) * 24 * time.Hour
-	s, err := load(*dataDir, *gridName, expiry)
+	s := &server{
+		eea:        newEEA(),
+		ledgerPath: filepath.Join(*dataDir, "claims.json"),
+		expiry:     expiry,
+	}
+	var err error
+	s.ledger, err = loadLedger(s.ledgerPath, expiry)
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("grid %s: %dx%d, %d claims / %d watches on the ledger",
-		*gridName, s.w, s.h, len(s.ledger.Claims), len(s.ledger.Watches))
+	log.Printf("europe is the board: %d claims / %d watches",
+		len(s.ledger.Claims), len(s.ledger.Watches))
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/grid", s.handleMeta)
-	mux.HandleFunc("GET /api/grid.raw", s.handleGridRaw)
+	mux.HandleFunc("GET /api/raster", s.handleRaster)
 	mux.HandleFunc("GET /api/claims", s.handleGetLedger)
 	mux.HandleFunc("POST /api/claims", s.handlePledge)
-	mux.HandleFunc("POST /api/claims/{x}/{y}/flip", s.handleFlip)
-	mux.HandleFunc("DELETE /api/claims/{x}/{y}", s.handleAbandon)
+	mux.HandleFunc("POST /api/claims/{pe}/{pn}/flip", s.handleFlip)
+	mux.HandleFunc("DELETE /api/claims/{pe}/{pn}", s.handleAbandon)
 	mux.HandleFunc("POST /api/watches", s.handleWatch)
-	mux.HandleFunc("DELETE /api/watches/{x}/{y}", s.handleUnwatch)
+	mux.HandleFunc("DELETE /api/watches/{pe}/{pn}", s.handleUnwatch)
 	mux.HandleFunc("GET /api/leaderboard", s.handleLeaderboard)
 	health := func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})

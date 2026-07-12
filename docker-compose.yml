@@ -1,15 +1,6 @@
 services:
-  # One-shot: fetch the grid from Copernicus if data/ is empty.
-  # (The repo ships tooling, not data — see tools/fetch_grid.py.)
-  fetch:
-    image: python:3.12-slim
-    volumes:
-      - ./tools:/tools:ro
-      - ./data:/data
-    command: >
-      sh -c "test -f /data/bcn.raw
-      || python3 /tools/fetch_grid.py 2.14 41.375 2.19 41.41 -o /data/bcn"
-
+  # V3: no local grid — the server streams values from the EEA image
+  # service on demand. data/ only holds the claims ledger.
   api:
     build: ./server
     ports:
@@ -17,9 +8,18 @@ services:
     volumes:
       - ./data:/data
     command: /usr/local/bin/tilewhip-server -addr :8080 -data /data
-    depends_on:
-      fetch:
-        condition: service_completed_successfully
+
+  # Optional analysis helper: fetch a static grid for any EU bbox
+  # (tools/fetch_grid.py); not needed to run the game.
+  fetch:
+    image: python:3.12-slim
+    profiles: ["tools"]
+    volumes:
+      - ./tools:/tools:ro
+      - ./data:/data
+    command: >
+      sh -c "test -f /data/bcn.raw
+      || python3 /tools/fetch_grid.py 2.14 41.375 2.19 41.41 -o /data/bcn"
 
   web:
     image: node:22-alpine

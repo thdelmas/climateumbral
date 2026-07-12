@@ -1,18 +1,13 @@
 <script setup>
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
-import MapBoard from './components/MapBoard.vue'
+import EuroMap from './components/EuroMap.vue'
 import PixelPanel from './components/PixelPanel.vue'
 import Leaderboard from './components/Leaderboard.vue'
 import ScoreBar from './components/ScoreBar.vue'
 import Legend from './components/Legend.vue'
-import {
-  sealedStats,
-  meanPenalty,
-  flipsPerDegree,
-  DAY_COEF,
-  NIGHT_COEF,
-} from './lib/heat.js'
-import { computeCandidates } from './lib/grid.js'
+import MapControls from './components/MapControls.vue'
+import { meanPenalty, flipsPerDegree, DAY_COEF, NIGHT_COEF }
+  from './lib/heat.js'
 import {
   myName,
   setMyName,
@@ -24,17 +19,13 @@ import {
   addOpened,
 } from './lib/local.js'
 
-const meta = ref(null)
-const grid = shallowRef(null)
-const pledged = shallowRef(new Set())
-const flipped = shallowRef(new Set())
-const watched = shallowRef(new Set())
-const claimAt = shallowRef(new Map())
-const watchesAt = shallowRef(new Map())
-const candidates = shallowRef(new Set())
+const claims = shallowRef([]) // active claimViews
+const watches = shallowRef([])
+const claimAt = shallowRef(new Map()) // "pe,pn" -> claimView
+const watchesAt = shallowRef(new Map()) // "pe,pn" -> watchViews
 const leaders = ref([])
 const version = ref(0)
-const selected = ref(null)
+const selected = ref(null) // {pe, pn} or null
 const name = ref(myName())
 const error = ref('')
 const lastOpened = ref(null)
@@ -42,7 +33,7 @@ const pledgedM2 = ref(0)
 const flippedM2 = ref(0)
 const opened = ref(openedTotal())
 const board = ref(null)
-const heat = shallowRef(null) // {S, C} from sealedStats
+const raster = shallowRef(null) // viewport snapshot from EuroMap
 const mode = ref(
   ['day', 'night'].includes(
     new URLSearchParams(location.search).get('view'),
@@ -51,50 +42,63 @@ const mode = ref(
     : 'land',
 )
 
+watch(name, (n) => setMyName(n.trim()))
+
+const key = (pe, pn) => `${pe},${pn}`
+const selKey = computed(() =>
+  selected.value ? key(selected.value.pe, selected.value.pn) : null,
+)
+
 function setMode(m) {
   mode.value = m
   const q = m === 'land' ? '' : `?view=${m}`
   history.replaceState(null, '', location.pathname + q + location.hash)
 }
 
+// ---- viewport-derived numbers (from the EuroMap raster snapshot) ----
+
+const candidateCount = computed(() => raster.value?.cands?.size ?? 0)
 const nightAvg = computed(() =>
-  heat.value ? meanPenalty(heat.value.S, NIGHT_COEF) : 0,
+  raster.value ? meanPenalty(raster.value.S, NIGHT_COEF) : 0,
+)
+const selLocal = computed(() => {
+  const r = raster.value
+  const s = selected.value
+  if (!r || !s) return -1
+  const col = s.pe - r.pe0
+  const row = r.H - 1 - (s.pn - r.pn0)
+  if (col < 0 || row < 0 || col >= r.W || row >= r.H) return -1
+  return row * r.W + col
+})
+const selValue = computed(() =>
+  selLocal.value >= 0 ? raster.value.g[selLocal.value] : null,
 )
 const selHeat = computed(() => {
-  if (!heat.value || !selected.value) return null
-  const s = heat.value.S[selected.value.i]
-  if (s < 0) return null
+  const i = selLocal.value
+  if (i < 0 || raster.value.S[i] < 0) return null
   return {
-    day: DAY_COEF * s,
-    night: NIGHT_COEF * s,
-    flips: flipsPerDegree(grid.value, selected.value.i, heat.value.C),
+    day: DAY_COEF * raster.value.S[i],
+    night: NIGHT_COEF * raster.value.S[i],
+    flips: flipsPerDegree(raster.value.g, i, raster.value.C),
   }
 })
-
-watch(name, (n) => setMyName(n.trim()))
-
-const openedLabel = computed(() =>
-  lastOpened.value
-    ? `+${lastOpened.value} new candidates opened`
-    : 'no new candidates opened',
+const selIsCandidate = computed(
+  () => selLocal.value >= 0 && raster.value.cands?.has(selLocal.value),
 )
 
-const idx = (c) => c.y * meta.value.width + c.x
-
-// ---- personal score: my acts are the ones whose tokens I hold ----
+// ---- personal score ----
 
 const mine = computed(() => {
   version.value // recompute when the ledger refreshes
   const list = []
-  for (const key of Object.keys(allTokens('claim'))) {
-    const [x, y] = key.split(',').map(Number)
-    const c = claimAt.value.get(y * meta.value.width + x)
+  for (const k of Object.keys(allTokens('claim'))) {
+    const c = claimAt.value.get(k)
     if (c) list.push(c)
   }
   return list
 })
-const mineSet = computed(
-  () => new Set(mine.value.map((c) => idx(c))),
+const mineKeys = computed(
+  () => new Set(mine.value.map((c) => key(c.pe, c.pn))),
 )
 const myPledges = computed(() =>
   mine.value.filter((c) => c.status === 'pledged'),
@@ -104,10 +108,9 @@ const myFlipped = computed(() =>
 )
 const myWatchCount = computed(() => {
   version.value
-  return Object.keys(allTokens('watch')).filter((key) => {
-    const [x, y] = key.split(',').map(Number)
-    return watchesAt.value.has(y * meta.value.width + x)
-  }).length
+  return Object.keys(allTokens('watch')).filter((k) =>
+    watchesAt.value.has(k),
+  ).length
 })
 const myRank = computed(() => {
   const n = name.value.trim()
@@ -122,7 +125,6 @@ const nextPledge = computed(() =>
   )[0] ?? null,
 )
 
-// The mission: always one obvious next move.
 const mission = computed(() => {
   if (!mine.value.length) {
     return {
@@ -137,7 +139,7 @@ const mission = computed(() => {
   if (p) {
     return {
       text:
-        `You promised square ${p.x},${p.y} — ` +
+        `You promised square ${p.pe},${p.pn} — ` +
         `${daysLeft(p)} days left to flip it.`,
       btn: 'go to my pledge',
       goto: p,
@@ -146,7 +148,8 @@ const mission = computed(() => {
   return {
     text:
       `All your pledges are flipped — ` +
-      `${myFlipped.value.length * 100} m² breathing again. Open a new front?`,
+      `${myFlipped.value.length * 100} m² breathing again. ` +
+      'Open a new front?',
     btn: '→ find me a square',
     goto: null,
   }
@@ -158,44 +161,30 @@ function onMission() {
     board.value?.frontline()
     return
   }
-  const p = { x: m.goto.x, y: m.goto.y, i: idx(m.goto) }
-  selected.value = p
-  board.value?.goTo(p.x, p.y)
-  history.replaceState(null, '', `#${p.x},${p.y}`)
+  selected.value = { pe: m.goto.pe, pn: m.goto.pn }
+  board.value?.goTo(m.goto.pe, m.goto.pn)
+  history.replaceState(null, '', `#${m.goto.pe},${m.goto.pn}`)
 }
+
+// ---- ledger sync + acts ----
 
 async function refresh() {
   const res = await fetch('/api/claims')
   const ledger = await res.json()
-  const p = new Set()
-  const f = new Set()
+  const active = ledger.claims.filter((c) => c.status !== 'expired')
   const cm = new Map()
-  for (const c of ledger.claims) {
-    if (c.status === 'expired') continue
-    cm.set(idx(c), c)
-    if (c.status === 'flipped') f.add(idx(c))
-    else p.add(idx(c))
-  }
+  for (const c of active) cm.set(key(c.pe, c.pn), c)
   const wm = new Map()
   for (const w of ledger.watches) {
-    const i = idx(w)
-    wm.set(i, [...(wm.get(i) ?? []), w])
+    const k = key(w.pe, w.pn)
+    wm.set(k, [...(wm.get(k) ?? []), w])
   }
-  pledged.value = p
-  flipped.value = f
-  watched.value = new Set(wm.keys())
+  claims.value = active
+  watches.value = ledger.watches
   claimAt.value = cm
   watchesAt.value = wm
   pledgedM2.value = ledger.pledged_m2
   flippedM2.value = ledger.flipped_m2
-  heat.value = sealedStats(grid.value, meta.value.width,
-    meta.value.height, f)
-  candidates.value = computeCandidates(
-    grid.value,
-    meta.value.width,
-    meta.value.height,
-    new Set([...p, ...f]),
-  )
   version.value++
   leaders.value = await (await fetch('/api/leaderboard')).json()
 }
@@ -226,85 +215,77 @@ async function del(path, token) {
 }
 
 async function pledge() {
-  const { x, y } = selected.value
-  const before = candidates.value.size
+  const { pe, pn } = selected.value
+  const before = candidateCount.value
   const res = await post('/api/claims', {
-    x,
-    y,
+    pe,
+    pn,
     name: name.value.trim(),
   })
   if (res.ok) {
     const { token } = await res.json()
-    rememberToken('claim', x, y, token)
+    rememberToken('claim', pe, pn, token)
   }
   await refresh()
   if (res.ok) {
-    lastOpened.value = Math.max(
-      0,
-      candidates.value.size - (before - 1),
-    )
+    lastOpened.value = Math.max(0, candidateCount.value - (before - 1))
     addOpened(lastOpened.value)
     opened.value = openedTotal()
   }
 }
 
 async function flip(photo) {
-  const { x, y } = selected.value
-  await post(`/api/claims/${x}/${y}/flip`, {
-    token: tokenFor('claim', x, y),
+  const { pe, pn } = selected.value
+  await post(`/api/claims/${pe}/${pn}/flip`, {
+    token: tokenFor('claim', pe, pn),
     photo,
   })
   await refresh()
 }
 
 async function abandon() {
-  const { x, y } = selected.value
-  const res = await del(`/api/claims/${x}/${y}`, tokenFor('claim', x, y))
-  if (res.status === 204) forgetToken('claim', x, y)
+  const { pe, pn } = selected.value
+  const res = await del(`/api/claims/${pe}/${pn}`,
+    tokenFor('claim', pe, pn))
+  if (res.status === 204) forgetToken('claim', pe, pn)
   await refresh()
 }
 
 async function watchPixel() {
-  const { x, y } = selected.value
+  const { pe, pn } = selected.value
   const res = await post('/api/watches', {
-    x,
-    y,
+    pe,
+    pn,
     name: name.value.trim(),
   })
   if (res.ok) {
     const { token } = await res.json()
-    rememberToken('watch', x, y, token)
+    rememberToken('watch', pe, pn, token)
   }
   await refresh()
 }
 
 async function unwatch() {
-  const { x, y } = selected.value
-  const res = await del(`/api/watches/${x}/${y}`, tokenFor('watch', x, y))
-  if (res.status === 204) forgetToken('watch', x, y)
+  const { pe, pn } = selected.value
+  const res = await del(`/api/watches/${pe}/${pn}`,
+    tokenFor('watch', pe, pn))
+  if (res.status === 204) forgetToken('watch', pe, pn)
   await refresh()
 }
 
 function select(p) {
   selected.value = p
-  history.replaceState(null, '', `#${p.x},${p.y}`)
+  history.replaceState(null, '', `#${p.pe},${p.pn}`)
 }
 
 onMounted(async () => {
-  const [metaRes, rawRes] = await Promise.all([
-    fetch('/api/grid'),
-    fetch('/api/grid.raw'),
-  ])
-  meta.value = await metaRes.json()
-  grid.value = new Uint8Array(await rawRes.arrayBuffer())
   await refresh()
   const m = location.hash.match(/^#(\d+),(\d+)$/)
   if (m) {
-    const x = +m[1]
-    const y = +m[2]
-    if (x < meta.value.width && y < meta.value.height) {
-      selected.value = { x, y, i: y * meta.value.width + x }
-    }
+    const pe = +m[1]
+    const pn = +m[2]
+    selected.value = { pe, pn }
+    board.value?.goTo(pe, pn)
   }
 })
 </script>
@@ -314,13 +295,13 @@ onMounted(async () => {
     <header>
       <h1>Tilewhip</h1>
       <p class="sub">
-        This is central Barcelona as the satellite sees it — every
-        square a real 10 × 10 m of ground. Gray is sealed. Green is
-        alive. The game: turn gray into green, square by square.
+        Europe as the satellite sees it — every square a real
+        10 × 10 m of ground. Gray is sealed. Green is alive. The game:
+        turn gray into green, square by square, until the nights cool.
       </p>
       <ol class="steps">
         <li>
-          Hit <b>“find me a square”</b> — it zooms to an
+          Hit <b>“find me a square”</b> — it flies to an
           <b>orange</b> square: sealed ground touching life.
         </li>
         <li>
@@ -342,7 +323,6 @@ onMounted(async () => {
     </header>
 
     <ScoreBar
-      v-if="grid"
       :mission="mission"
       :has-acts="mine.length > 0 || myWatchCount > 0"
       :my-flipped-m2="myFlipped.length * 100"
@@ -352,61 +332,64 @@ onMounted(async () => {
       :my-rank="myRank"
       :flipped-m2="flippedM2"
       :pledged-m2="pledgedM2"
-      :candidate-count="candidates.size"
-      :opened-label="lastOpened !== null ? openedLabel : null"
+      :candidate-count="candidateCount"
+      :opened-label="lastOpened !== null
+        ? (lastOpened
+          ? `+${lastOpened} new candidates opened`
+          : 'no new candidates opened')
+        : null"
       :night-avg="nightAvg"
       @mission="onMission"
     />
     <p v-if="error" class="error">{{ error }}</p>
 
-    <template v-if="grid">
-      <MapBoard
-        ref="board"
-        :grid="grid"
-        :meta="meta"
-        :pledged="pledged"
-        :flipped="flipped"
-        :watched="watched"
-        :candidates="candidates"
-        :mine="mineSet"
-        :selected="selected"
-        :heat-s="heat?.S"
-        :mode="mode"
-        :version="version"
-        @select="select"
-        @mode="setMode"
-      />
-      <Legend :mode="mode" />
-      <PixelPanel
-        v-if="selected"
-        :pixel="selected"
-        :value="grid[selected.i]"
-        :meta="meta"
-        :claim="claimAt.get(selected.i) ?? null"
-        :watches="watchesAt.get(selected.i) ?? []"
-        :is-candidate="candidates.has(selected.i)"
-        :my-claim-token="tokenFor('claim', selected.x, selected.y)"
-        :my-watch-token="tokenFor('watch', selected.x, selected.y)"
-        :day-delta="selHeat?.day ?? null"
-        :night-delta="selHeat?.night ?? null"
-        :flips-per-deg="selHeat?.flips ?? 0"
-        :key="`${selected.i}v${version}`"
-        @pledge="pledge"
-        @flip="flip"
-        @abandon="abandon"
-        @watch="watchPixel"
-        @unwatch="unwatch"
-      />
-      <Leaderboard :rows="leaders" />
-    </template>
-    <p v-else class="sub">loading the grid…</p>
+    <MapControls
+      :mode="mode"
+      @frontline="board?.frontline()"
+      @mode="setMode"
+    />
+
+    <EuroMap
+      ref="board"
+      :claims="claims"
+      :watches="watches"
+      :mine-keys="mineKeys"
+      :selected="selected"
+      :mode="mode"
+      :version="version"
+      @select="select"
+      @raster="(r) => (raster = r)"
+    />
+    <Legend :mode="mode" />
+
+    <PixelPanel
+      v-if="selected"
+      :pixel="selected"
+      :value="selValue"
+      :claim="claimAt.get(selKey) ?? null"
+      :watches="watchesAt.get(selKey) ?? []"
+      :is-candidate="selIsCandidate"
+      :my-claim-token="tokenFor('claim', selected.pe, selected.pn)"
+      :my-watch-token="tokenFor('watch', selected.pe, selected.pn)"
+      :day-delta="selHeat?.day ?? null"
+      :night-delta="selHeat?.night ?? null"
+      :flips-per-deg="selHeat?.flips ?? 0"
+      :key="`${selKey}v${version}`"
+      @pledge="pledge"
+      @flip="flip"
+      @abandon="abandon"
+      @watch="watchPixel"
+      @unwatch="unwatch"
+    />
+    <Leaderboard :rows="leaders" />
 
     <footer>
       <p>
         Data: © European Union, Copernicus Land Monitoring Service /
-        EEA — Imperviousness Density 2018, 10 m. Claims are pledges;
-        satellites keep the real score. The ledger stores only what
-        this board shows; erase your acts anytime from their pixel.
+        EEA — Imperviousness Density 2018, 10 m. Basemap ©
+        OpenStreetMap contributors. Claims are pledges; satellites keep
+        the real score. The ledger stores only what this board shows;
+        erase your acts anytime from their pixel.
       </p>
     </footer>
   </div>
@@ -414,7 +397,7 @@ onMounted(async () => {
 
 <style scoped>
 .wrap {
-  max-width: 640px;
+  max-width: 720px;
   margin: 0 auto;
   padding: clamp(16px, 4vw, 48px) clamp(12px, 4vw, 40px) 80px;
 }

@@ -36,8 +36,16 @@ self-report alone.
 
 ## Status
 
-**V1.5 — the game runs.** `make dev` starts the stack (Docker: Vite/Vue
-frontend on :5173, Go API on :8080). On the real Barcelona map you can:
+**V3 — Europe is the board.** `make dev` starts the stack (Docker:
+Vite/Vue + MapLibre frontend on :5173, Go API on :8080). A slippy map
+of the whole continent: OpenStreetMap under the EU-wide Copernicus
+imperviousness layer. Zoom into any city and the front line loads —
+live 10 m values streamed (and cached) from the EEA image service, no
+local data at all. Claims are keyed to the continent-wide EPSG:3035
+10 m pixel grid, and the server validates every pledge against the
+same upstream pixels. Day/night modeled heat views work everywhere.
+
+On any city you can:
 
 - **pledge** a candidate pixel (hard-sealed touching green) — 90 days to
   flip it or it returns to the pool, and every live claim counts as
@@ -45,8 +53,9 @@ frontend on :5173, Go API on :8080). On the real Barcelona map you can:
 - **flip** it with an optional photo URL as proof
 - **watch** any sealed pixel you can't flip yourself — coalitions for
   public land
-- share a **permalink** to any pixel (`#x,y`); see the **ledger** with
-  flipped and pledged m² in separate columns, always
+- share a **permalink** to any square on the continent (`#pe,pn`); see
+  the **ledger** with flipped and pledged m² in separate columns,
+  always
 
 No accounts: a pseudonym plus a per-act bearer token (kept by your
 browser) that lets you flip or erase your own acts — the ledger stores
@@ -71,14 +80,10 @@ python3 tools/fetch_grid.py 2.14 41.375 2.19 41.41 -o bcn
 
 ## Roadmap
 
-- **V2 — the heat layer**: every pixel's delta from *human-livable
-  temperature*, day and night separately (night is the killer); flips
-  scored in modeled °C cooled; city leaderboards in degrees, not
-  hectares. See `docs/INTENT.md`.
-- **V3 — every city**: slippy map (MapLibre) over the EU imperviousness
-  layers with live candidate detection; leaderboards by municipality
-  size class.
-- **V4 — the audit**: score regions/governments on *measured* de-sealing
+- **V4 — degrees get real**: calibrate the heat model against measured
+  Sentinel-3/MODIS day+night LST; city leaderboards in degrees cooled,
+  by municipality size class. See `docs/INTENT.md`.
+- **V5 — the audit**: score regions/governments on *measured* de-sealing
   and LST between satellite epochs — pledges don't count, pixels do.
 
 See `docs/GAME_DESIGN.md` for the incentive design across levels and

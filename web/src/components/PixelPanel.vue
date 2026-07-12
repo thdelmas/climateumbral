@@ -1,11 +1,10 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { SEA, NODATA } from '../lib/grid.js'
+import { pixelCenter } from '../lib/proj.js'
 
 const props = defineProps({
-  pixel: Object, // {x, y, i}
-  value: Number, // grid value at the pixel
-  meta: Object,
+  pixel: Object, // {pe, pn} — continent pixel
+  value: Number, // sealed-% at the pixel; null if outside the raster
   claim: Object, // claimView or null
   watches: Array, // watchViews on this pixel
   isCandidate: Boolean,
@@ -27,20 +26,18 @@ const photo = ref('')
 const copied = ref(false)
 
 const coords = computed(() => {
-  const { width, height, bbox_4326: bb } = props.meta
-  const lon = (bb[0] + (props.pixel.x / width) * (bb[2] - bb[0])).toFixed(4)
-  const lat = (bb[3] - (props.pixel.y / height) * (bb[3] - bb[1])).toFixed(4)
-  return `${lat}, ${lon}`
+  const [lon, lat] = pixelCenter(props.pixel.pe, props.pixel.pn)
+  return `${lat.toFixed(4)}, ${lon.toFixed(4)}`
 })
 
 const surface = computed(() => {
-  if (props.value === SEA) return 'the sea'
-  if (props.value === NODATA) return 'no data'
+  if (props.value === null) return 'zoom in for ground truth'
+  if (props.value > 100) return 'no data'
   return `${props.value}% sealed`
 })
 
 const sealed = computed(
-  () => props.value >= 90 && props.value < SEA,
+  () => props.value !== null && props.value >= 90 && props.value <= 100,
 )
 
 const daysLeft = computed(() => {
@@ -51,7 +48,7 @@ const daysLeft = computed(() => {
 
 async function copyLink() {
   const url = `${location.origin}${location.pathname}` +
-    `#${props.pixel.x},${props.pixel.y}`
+    `#${props.pixel.pe},${props.pixel.pn}`
   await navigator.clipboard.writeText(url)
   copied.value = true
   setTimeout(() => (copied.value = false), 1500)
@@ -61,7 +58,7 @@ async function copyLink() {
 <template>
   <div class="panel">
     <div class="row head">
-      <strong>pixel {{ pixel.x }},{{ pixel.y }}</strong>
+      <strong>square {{ pixel.pe }},{{ pixel.pn }}</strong>
       <span class="muted">{{ surface }} · 10 × 10 m at ≈ {{ coords }}</span>
       <button class="link" @click="copyLink">
         {{ copied ? 'copied!' : 'copy link' }}

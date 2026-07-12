@@ -14,7 +14,7 @@ var (
 
 func pledge(x, y int, name string, ts time.Time) claim {
 	return claim{
-		X: x, Y: y, Name: name, TS: ts,
+		Pe: x, Pn: y, Name: name, TS: ts,
 		Deadline: ts.Add(expiry), Token: newToken(),
 	}
 }
@@ -76,7 +76,7 @@ func TestLeaderboardSeparatesColumns(t *testing.T) {
 
 func TestLoadLegacyFormat(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "claims.json")
-	legacy := `[{"x":26,"y":21,"name":"mia","ts":"2026-07-12T11:00:00Z"}]`
+	legacy := `[{"pe":26,"pn":21,"name":"mia","ts":"2026-07-12T11:00:00Z"}]`
 	if err := os.WriteFile(path, []byte(legacy), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestPersistRoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "claims.json")
 	l := &ledger{
 		Claims:  []claim{pledge(1, 1, "mia", t0)},
-		Watches: []watch{{X: 2, Y: 2, Name: "ana", TS: t0, Token: "t"}},
+		Watches: []watch{{Pe: 2, Pn: 2, Name: "ana", TS: t0, Token: "t"}},
 	}
 	if err := l.persist(path); err != nil {
 		t.Fatal(err)
