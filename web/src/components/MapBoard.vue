@@ -9,6 +9,7 @@ import {
   SEA,
   NODATA,
 } from '../lib/grid.js'
+import { DAY_COEF, NIGHT_COEF, heatColor } from '../lib/heat.js'
 
 const props = defineProps({
   grid: Uint8Array,
@@ -19,9 +20,11 @@ const props = defineProps({
   candidates: Set,
   mine: Set, // pixels whose claim token this browser holds
   selected: Object, // {x, y, i} or null
+  heatS: Float32Array, // neighborhood sealed fraction, -1 = sea/nodata
+  mode: String, // 'land' | 'day' | 'night'
   version: Number, // bumped by the parent to trigger a redraw
 })
-const emit = defineEmits(['select'])
+const emit = defineEmits(['select', 'mode'])
 
 const wrap = ref(null)
 const canvas = ref(null)
@@ -42,11 +45,17 @@ const scale = () => (cssW / props.meta.width) * view.zoom
 
 function paintOffscreen() {
   const { grid, meta, pledged, flipped, watched, candidates } = props
+  const heat = props.mode !== 'land' && props.heatS
+  const coef = props.mode === 'day' ? DAY_COEF : NIGHT_COEF
   const ctx = off.getContext('2d')
   const im = ctx.createImageData(meta.width, meta.height)
   for (let i = 0; i < grid.length; i++) {
     let c
-    if (flipped.has(i)) c = FLIPPED_COLOR
+    if (heat) {
+      c = props.heatS[i] < 0
+        ? colorFor(grid[i]) // sea / nodata keep their colors
+        : heatColor(coef * props.heatS[i], coef)
+    } else if (flipped.has(i)) c = FLIPPED_COLOR
     else if (pledged.has(i)) c = PLEDGED_COLOR
     else if (candidates.has(i)) c = CANDIDATE_COLOR
     else if (watched.has(i)) c = WATCHED_COLOR
@@ -122,6 +131,14 @@ function pixelAt(e) {
 
 function tipText(p) {
   const v = props.grid[p.i]
+  if (props.mode !== 'land' && props.heatS) {
+    if (v === SEA) return 'the sea'
+    if (v === NODATA) return 'no data'
+    const coef = props.mode === 'day' ? DAY_COEF : NIGHT_COEF
+    const d = (coef * props.heatS[p.i]).toFixed(1)
+    const tag = props.candidates.has(p.i) ? ' · candidate' : ''
+    return `+${d} °C ${props.mode} (modeled)${tag}`
+  }
   const yours = props.mine?.has(p.i) ? 'your ' : ''
   if (props.flipped.has(p.i)) return `${yours}flip — soil again`
   if (props.pledged.has(p.i)) return `${yours}pledge — click for details`
@@ -250,6 +267,10 @@ watch(() => props.version, () => {
   paintOffscreen()
   draw()
 })
+watch(() => props.mode, () => {
+  paintOffscreen()
+  draw()
+})
 watch(() => props.selected, draw)
 watch(() => props.mine, draw)
 
@@ -262,6 +283,16 @@ defineExpose({ frontline, goTo })
       <button class="go" @click="frontline">
         → find me a square
       </button>
+      <span class="seg">
+        <button
+          v-for="m in ['land', 'day', 'night']"
+          :key="m"
+          :aria-pressed="mode === m"
+          @click="emit('mode', m)"
+        >
+          {{ m === 'land' ? 'map' : m === 'day' ? 'day °C' : 'night °C' }}
+        </button>
+      </span>
       <span class="spacer" />
       <button @click="zoomBy(1 / 1.5)" aria-label="zoom out">−</button>
       <span class="zoom">{{ zoomPct }}%</span>
@@ -316,6 +347,25 @@ defineExpose({ frontline, goTo })
   color: var(--bg);
   border-color: var(--accent);
   font-weight: 600;
+}
+.controls .seg {
+  display: inline-flex;
+}
+.controls .seg button {
+  border-radius: 0;
+  margin-left: -1px;
+}
+.controls .seg button:first-child {
+  border-radius: 999px 0 0 999px;
+  margin-left: 0;
+}
+.controls .seg button:last-child {
+  border-radius: 0 999px 999px 0;
+}
+.controls .seg button[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
 }
 .zoom {
   font-size: 12.5px;

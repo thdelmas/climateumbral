@@ -4,6 +4,14 @@ import MapBoard from './components/MapBoard.vue'
 import PixelPanel from './components/PixelPanel.vue'
 import Leaderboard from './components/Leaderboard.vue'
 import ScoreBar from './components/ScoreBar.vue'
+import Legend from './components/Legend.vue'
+import {
+  sealedStats,
+  meanPenalty,
+  flipsPerDegree,
+  DAY_COEF,
+  NIGHT_COEF,
+} from './lib/heat.js'
 import { computeCandidates } from './lib/grid.js'
 import {
   myName,
@@ -34,6 +42,34 @@ const pledgedM2 = ref(0)
 const flippedM2 = ref(0)
 const opened = ref(openedTotal())
 const board = ref(null)
+const heat = shallowRef(null) // {S, C} from sealedStats
+const mode = ref(
+  ['day', 'night'].includes(
+    new URLSearchParams(location.search).get('view'),
+  )
+    ? new URLSearchParams(location.search).get('view')
+    : 'land',
+)
+
+function setMode(m) {
+  mode.value = m
+  const q = m === 'land' ? '' : `?view=${m}`
+  history.replaceState(null, '', location.pathname + q + location.hash)
+}
+
+const nightAvg = computed(() =>
+  heat.value ? meanPenalty(heat.value.S, NIGHT_COEF) : 0,
+)
+const selHeat = computed(() => {
+  if (!heat.value || !selected.value) return null
+  const s = heat.value.S[selected.value.i]
+  if (s < 0) return null
+  return {
+    day: DAY_COEF * s,
+    night: NIGHT_COEF * s,
+    flips: flipsPerDegree(grid.value, selected.value.i, heat.value.C),
+  }
+})
 
 watch(name, (n) => setMyName(n.trim()))
 
@@ -152,6 +188,8 @@ async function refresh() {
   watchesAt.value = wm
   pledgedM2.value = ledger.pledged_m2
   flippedM2.value = ledger.flipped_m2
+  heat.value = sealedStats(grid.value, meta.value.width,
+    meta.value.height, f)
   candidates.value = computeCandidates(
     grid.value,
     meta.value.width,
@@ -316,6 +354,7 @@ onMounted(async () => {
       :pledged-m2="pledgedM2"
       :candidate-count="candidates.size"
       :opened-label="lastOpened !== null ? openedLabel : null"
+      :night-avg="nightAvg"
       @mission="onMission"
     />
     <p v-if="error" class="error">{{ error }}</p>
@@ -331,19 +370,13 @@ onMounted(async () => {
         :candidates="candidates"
         :mine="mineSet"
         :selected="selected"
+        :heat-s="heat?.S"
+        :mode="mode"
         :version="version"
         @select="select"
+        @mode="setMode"
       />
-      <div class="legend">
-        <span><i style="background: rgb(255, 122, 26)" /> candidate —
-          claim me</span>
-        <span><i style="background: rgb(235, 179, 66)" /> pledged</span>
-        <span><i style="background: rgb(125, 200, 110)" /> flipped</span>
-        <span><i style="background: rgb(150, 118, 220)" /> watched</span>
-        <span><i style="background: rgb(61, 61, 68)" /> sealed</span>
-        <span><i style="background: rgb(46, 107, 62)" /> green</span>
-        <span><i class="mine-chip" /> yours</span>
-      </div>
+      <Legend :mode="mode" />
       <PixelPanel
         v-if="selected"
         :pixel="selected"
@@ -354,6 +387,9 @@ onMounted(async () => {
         :is-candidate="candidates.has(selected.i)"
         :my-claim-token="tokenFor('claim', selected.x, selected.y)"
         :my-watch-token="tokenFor('watch', selected.x, selected.y)"
+        :day-delta="selHeat?.day ?? null"
+        :night-delta="selHeat?.night ?? null"
+        :flips-per-deg="selHeat?.flips ?? 0"
         :key="`${selected.i}v${version}`"
         @pledge="pledge"
         @flip="flip"
@@ -404,29 +440,6 @@ header h1 {
 }
 .steps b {
   color: var(--ink);
-}
-.legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  margin-top: 10px;
-  font-size: 12.5px;
-  color: var(--ink-2);
-}
-.legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.legend i {
-  width: 11px;
-  height: 11px;
-  border-radius: 3px;
-  display: inline-block;
-}
-.legend i.mine-chip {
-  background: transparent;
-  border: 2px solid var(--ink);
 }
 .who {
   display: inline-flex;

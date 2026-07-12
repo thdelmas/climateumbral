@@ -11,6 +11,9 @@ const props = defineProps({
   isCandidate: Boolean,
   myClaimToken: String,
   myWatchToken: String,
+  dayDelta: Number, // modeled °C above unsealed, null off land
+  nightDelta: Number,
+  flipsPerDeg: Number, // flips like this one per modeled night degree
 })
 const emit = defineEmits([
   'pledge',
@@ -63,6 +66,15 @@ async function copyLink() {
       <button class="link" @click="copyLink">
         {{ copied ? 'copied!' : 'copy link' }}
       </button>
+    </div>
+
+    <div v-if="dayDelta !== null" class="row heat">
+      block heat, modeled: <b>+{{ dayDelta.toFixed(1) }} °C</b> day ·
+      <b>+{{ nightDelta.toFixed(1) }} °C</b> night
+      <template v-if="isCandidate && !claim && flipsPerDeg">
+        — one of ~{{ flipsPerDeg }} flips its block needs to sleep
+        1 °C cooler
+      </template>
     </div>
 
     <div v-if="claim" class="row">
@@ -141,6 +153,12 @@ async function copyLink() {
 }
 .muted {
   color: var(--ink-2);
+}
+.heat {
+  color: var(--ink-2);
+}
+.heat b {
+  color: #c25c2a;
 }
 .pledged {
   color: #b3831a;

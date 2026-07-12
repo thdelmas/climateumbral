@@ -71,6 +71,17 @@ therefore a *downscaled model* (LST calibrated against imperviousness
 and land cover) and must be labeled modeled. Rule 1 applies to degrees
 exactly as it applies to m²: modeled and measured never mix.
 
+Model v0 (shipped, `web/src/lib/heat.js`): penalty = coefficient ×
+mean sealed fraction within 150 m, with day 6 °C and night 4 °C as
+placeholder magnitudes in the range European SUHI literature reports.
+Flipped pixels count as unsealed, so every flip cools its block in the
+model; a candidate's panel states how many flips like it the block
+needs to sleep 1 °C cooler. v1 replaces the coefficients with a
+calibration against real day/night LST — that step needs a Copernicus
+Data Space or NASA Earthdata registration (free, but no longer
+keyless; the zero-cost doctrine survives, the no-account purity does
+not).
+
 Sustainability note (the binding constraint is money ≈ 0): open data
 only, infra one person can run. If monetization exists it sustains the
 project — municipal heat-adaptation targeting reports/API from the

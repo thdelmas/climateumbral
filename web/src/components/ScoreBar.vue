@@ -11,6 +11,7 @@ defineProps({
   pledgedM2: Number,
   candidateCount: Number,
   openedLabel: String, // null until the first pledge of the session
+  nightAvg: Number, // modeled mean night heat penalty, °C
 })
 const emit = defineEmits(['mission'])
 </script>
@@ -57,6 +58,10 @@ const emit = defineEmits(['mission'])
     <span>
       <strong>{{ candidateCount.toLocaleString() }}</strong>
       candidates on the front line
+    </span>
+    <span v-if="nightAvg">
+      <strong>+{{ nightAvg.toFixed(2) }}</strong> °C avg night heat
+      penalty (modeled)
     </span>
     <span v-if="openedLabel" class="opened">{{ openedLabel }}</span>
   </div>
