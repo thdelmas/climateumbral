@@ -19,6 +19,26 @@ func pledge(x, y int, name string, ts time.Time) claim {
 	}
 }
 
+func TestNightCooling(t *testing.T) {
+	d := pledge(1, 1, "a", t0)
+	d.V = 95
+	if got := nightCooling(&d); got < 3.9 || got > 4.0 {
+		t.Fatalf("depave at 95%%: got %.3f m degC, want ~3.95", got)
+	}
+	tr := pledge(2, 2, "b", t0)
+	tr.Kind = "tree"
+	tr.V = 95
+	if got := nightCooling(&tr); got != 0 {
+		t.Fatalf("trees cool the day, not the night: got %.3f", got)
+	}
+	cr := pledge(3, 3, "c", t0)
+	cr.Kind = "coolroof"
+	cr.V = 100
+	if got := nightCooling(&cr); got < 0.3 || got > 0.5 {
+		t.Fatalf("coolroof: got %.3f m degC, want ~0.42", got)
+	}
+}
+
 func TestGreenSetExcludesCoolroofs(t *testing.T) {
 	tree := pledge(1, 1, "a", t0)
 	tree.Kind = "tree"

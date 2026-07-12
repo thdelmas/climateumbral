@@ -26,6 +26,7 @@ type claim struct {
 	Pe       int        `json:"pe"`
 	Pn       int        `json:"pn"`
 	Kind     string     `json:"kind"` // depave | tree | coolroof
+	V        int        `json:"v"`    // sealed % at pledge time
 	Name     string     `json:"name,omitempty"`
 	TS       time.Time  `json:"ts"`
 	Deadline time.Time  `json:"deadline"`
@@ -89,6 +90,9 @@ func loadLedger(path string, expiry time.Duration) (*ledger, error) {
 		if l.Claims[i].Kind == "" { // pre-acts ledgers were all depaves
 			l.Claims[i].Kind = "depave"
 		}
+		if l.Claims[i].V == 0 { // pre-snapshot claims: hard-sealed floor
+			l.Claims[i].V = hardSealed
+		}
 	}
 	return l, nil
 }
@@ -143,9 +147,23 @@ func (l *ledger) watchesAt(pe, pn int) []watch {
 }
 
 type rank struct {
-	Name      string `json:"name"`
-	PledgedM2 int    `json:"pledged_m2"`
-	FlippedM2 int    `json:"flipped_m2"`
+	Name      string  `json:"name"`
+	PledgedM2 int     `json:"pledged_m2"`
+	FlippedM2 int     `json:"flipped_m2"`
+	NightMC   float64 `json:"night_mdegc"` // modeled, milli-degC
+}
+
+// nightCooling scores one done act in modeled milli-degrees of
+// block-average night cooling. Mirrors web/src/lib/heat.js: night
+// coefficient 4 degC over a 150 m window (31x31 pixels; interior
+// window assumed), act night factors depave 0, tree 1, coolroof 0.9.
+// Small numbers are honest numbers: a depave is worth ~4 m degC to
+// its block's nights.
+func nightCooling(c *claim) float64 {
+	factor := map[string]float64{
+		"depave": 0, "tree": 1, "coolroof": 0.9,
+	}[c.Kind]
+	return 4.0 * float64(c.V) / 100 * (1 - factor) / (31 * 31) * 1000
 }
 
 // leaderboard keeps claimed and measured-ish apart (design rule 1):
@@ -170,6 +188,7 @@ func (l *ledger) leaderboard(now time.Time, top int) []rank {
 		}
 		if st == statusFlipped {
 			r.FlippedM2 += claimM2
+			r.NightMC += nightCooling(c)
 		} else {
 			r.PledgedM2 += claimM2
 		}
@@ -179,6 +198,9 @@ func (l *ledger) leaderboard(now time.Time, top int) []rank {
 		out = append(out, *r)
 	}
 	sort.Slice(out, func(a, b int) bool {
+		if out[a].NightMC != out[b].NightMC {
+			return out[a].NightMC > out[b].NightMC
+		}
 		if out[a].FlippedM2 != out[b].FlippedM2 {
 			return out[a].FlippedM2 > out[b].FlippedM2
 		}

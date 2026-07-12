@@ -113,7 +113,12 @@ extend the living network); cool surfaces do not (still sealed).
 
 Only *flipped* acts cool the model — a pledge is a promise, and
 promises don't lower anyone's night temperature (rule 1, again).
-The ledger unit stays m²; the meaning of an act is its degrees.
+The ledger unit stays m²; the meaning of an act is its degrees, and
+the ledger *scores* in degrees: modeled block-average night cooling,
+in thousandths of a °C (m°C), night because night is the killer.
+Small numbers are honest numbers — ~250 depaves cool a block's nights
+by 1 °C, and the leaderboard says so rather than inflating. Day
+cooling (where trees shine) shows in the map and the square's panel.
 
 Future acts follow the same contract (a day/night signature the model
 can defend): façade greening, shade sails, water. The Copernicus Tree

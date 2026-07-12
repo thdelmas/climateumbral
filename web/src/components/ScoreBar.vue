@@ -4,6 +4,7 @@ defineProps({
   hasActs: Boolean,
   myFlippedM2: Number,
   myPledgedM2: Number,
+  myNightMC: Number, // my modeled night cooling, milli-degC
   myWatchCount: Number,
   opened: Number,
   myRank: Number,
@@ -12,6 +13,7 @@ defineProps({
   candidateCount: Number,
   openedLabel: String, // null until the first pledge of the session
   nightAvg: Number, // modeled mean night heat penalty, °C
+  nightMC: Number, // everyone's modeled night cooling, milli-degC
 })
 const emit = defineEmits(['mission'])
 </script>
@@ -25,8 +27,12 @@ const emit = defineEmits(['mission'])
   <div class="counter you">
     <template v-if="hasActs">
       <span class="label">you</span>
+      <span v-if="myNightMC">
+        <strong>−{{ myNightMC.toFixed(1) }}</strong> m°C night
+        cooling (modeled)
+      </span>
       <span>
-        <strong>{{ myFlippedM2.toLocaleString() }}</strong> m² flipped
+        <strong>{{ myFlippedM2.toLocaleString() }}</strong> m² done
       </span>
       <span>
         <strong>{{ myPledgedM2.toLocaleString() }}</strong> m² pledged
@@ -49,8 +55,12 @@ const emit = defineEmits(['mission'])
 
   <div class="counter">
     <span class="label">everyone</span>
+    <span v-if="nightMC">
+      <strong>−{{ nightMC.toFixed(1) }}</strong> m°C night cooling
+      (modeled)
+    </span>
     <span>
-      <strong>{{ flippedM2.toLocaleString() }}</strong> m² flipped
+      <strong>{{ flippedM2.toLocaleString() }}</strong> m² done
     </span>
     <span>
       <strong>{{ pledgedM2.toLocaleString() }}</strong> m² pledged

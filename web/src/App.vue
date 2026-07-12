@@ -32,6 +32,7 @@ const error = ref('')
 const lastOpened = ref(null)
 const pledgedM2 = ref(0)
 const flippedM2 = ref(0)
+const nightMC = ref(0)
 const opened = ref(openedTotal())
 const board = ref(null)
 const raster = shallowRef(null) // viewport snapshot from EuroMap
@@ -118,6 +119,13 @@ const myRank = computed(() => {
   if (!n) return 0
   return leaders.value.findIndex((r) => r.name === n) + 1
 })
+const NIGHT_MC = { depave: 4, tree: 0, coolroof: 0.4 }
+const myNightMC = computed(() =>
+  myFlipped.value.reduce(
+    (sum, c) => sum + (NIGHT_MC[c.kind] ?? 0) * (c.v ?? 90) / 100,
+    0,
+  ),
+)
 const daysLeft = (c) =>
   Math.max(0, Math.ceil((new Date(c.deadline) - Date.now()) / 86_400_000))
 const nextPledge = computed(() =>
@@ -141,8 +149,9 @@ const mission = computed(() => {
   if (p) {
     return {
       text:
-        `You promised square ${p.pe},${p.pn} — ` +
-        `${daysLeft(p)} days left to flip it.`,
+        `You promised a ${p.kind === 'coolroof' ? 'cool surface'
+          : p.kind} at square ${p.pe},${p.pn} — ` +
+        `${daysLeft(p)} days left to do it.`,
       btn: 'go to my pledge',
       goto: p,
     }
@@ -187,6 +196,7 @@ async function refresh() {
   watchesAt.value = wm
   pledgedM2.value = ledger.pledged_m2
   flippedM2.value = ledger.flipped_m2
+  nightMC.value = ledger.night_mdegc ?? 0
   version.value++
   leaders.value = await (await fetch('/api/leaderboard')).json()
 }
@@ -340,6 +350,7 @@ onMounted(async () => {
       :has-acts="mine.length > 0 || myWatchCount > 0"
       :my-flipped-m2="myFlipped.length * 100"
       :my-pledged-m2="myPledges.length * 100"
+      :my-night-m-c="myNightMC"
       :my-watch-count="myWatchCount"
       :opened="opened"
       :my-rank="myRank"
@@ -352,6 +363,7 @@ onMounted(async () => {
           : 'no new candidates opened')
         : null"
       :night-avg="nightAvg"
+      :night-m-c="nightMC"
       @mission="onMission"
     />
     <p v-if="error" class="error">{{ error }}</p>

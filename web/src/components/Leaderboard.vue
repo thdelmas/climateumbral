@@ -12,21 +12,27 @@ defineProps({ rows: Array })
       <thead>
         <tr>
           <th>who</th>
-          <th>flipped</th>
+          <th>night cooling</th>
+          <th>done</th>
           <th>pledged</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="r in rows" :key="r.name">
           <td>{{ r.name }}</td>
+          <td class="num cool">
+            −{{ r.night_mdegc.toFixed(1) }} m°C
+          </td>
           <td class="num">{{ r.flipped_m2.toLocaleString() }} m²</td>
           <td class="num">{{ r.pledged_m2.toLocaleString() }} m²</td>
         </tr>
       </tbody>
     </table>
     <p v-if="rows.length" class="note">
-      Flipped and pledged never mix — flips are photo-backed claims;
-      the satellite audit comes per epoch.
+      Night cooling is modeled block-average °C, in thousandths (m°C)
+      — small numbers are honest numbers; ~250 acts cool a block's
+      nights by 1 °C. Done and pledged never mix; the satellite audit
+      comes per epoch.
     </p>
   </div>
 </template>
@@ -60,6 +66,10 @@ th {
 td.num,
 th:not(:first-child) {
   text-align: right;
+}
+.cool {
+  color: #4e8fbf;
+  font-weight: 600;
 }
 .note {
   margin-top: 8px;

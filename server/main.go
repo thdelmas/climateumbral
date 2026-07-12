@@ -109,6 +109,7 @@ type claimView struct {
 	Pe       int        `json:"pe"`
 	Pn       int        `json:"pn"`
 	Kind     string     `json:"kind"`
+	V        int        `json:"v"`
 	Name     string     `json:"name,omitempty"`
 	TS       time.Time  `json:"ts"`
 	Deadline time.Time  `json:"deadline"`
@@ -126,7 +127,7 @@ type watchView struct {
 
 func viewOf(c *claim, now time.Time) claimView {
 	return claimView{
-		Pe: c.Pe, Pn: c.Pn, Kind: c.Kind, Name: c.Name, TS: c.TS,
+		Pe: c.Pe, Pn: c.Pn, Kind: c.Kind, V: c.V, Name: c.Name, TS: c.TS,
 		Deadline: c.Deadline, Status: c.status(now),
 		Flipped: c.Flipped, Photo: c.Photo,
 	}
@@ -207,6 +208,7 @@ func (s *server) handleGetLedger(w http.ResponseWriter, _ *http.Request) {
 	defer s.mu.Unlock()
 	claims := make([]claimView, 0, len(s.ledger.Claims))
 	pledged, flipped := 0, 0
+	cooling := 0.0
 	for i := range s.ledger.Claims {
 		v := viewOf(&s.ledger.Claims[i], now)
 		claims = append(claims, v)
@@ -215,6 +217,7 @@ func (s *server) handleGetLedger(w http.ResponseWriter, _ *http.Request) {
 			pledged += claimM2
 		case statusFlipped:
 			flipped += claimM2
+			cooling += nightCooling(&s.ledger.Claims[i])
 		}
 	}
 	watches := make([]watchView, 0, len(s.ledger.Watches))
@@ -223,10 +226,11 @@ func (s *server) handleGetLedger(w http.ResponseWriter, _ *http.Request) {
 			watchView{Pe: wa.Pe, Pn: wa.Pn, Name: wa.Name, TS: wa.TS})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"claims":     claims,
-		"watches":    watches,
-		"pledged_m2": pledged,
-		"flipped_m2": flipped,
+		"claims":      claims,
+		"watches":     watches,
+		"pledged_m2":  pledged,
+		"flipped_m2":  flipped,
+		"night_mdegc": cooling,
 	})
 }
 
@@ -260,9 +264,14 @@ func (s *server) handlePledge(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusConflict, err.Error())
 		return
 	}
+	nb, _ := s.eea.neighborhood(req.Pe, req.Pn) // cached by pledgeable
+	v := hardSealed
+	if len(nb) == 9 {
+		v = int(nb[4])
+	}
 	c := claim{
-		Pe: req.Pe, Pn: req.Pn, Kind: req.Kind, Name: name, TS: now,
-		Deadline: now.Add(s.expiry), Token: newToken(),
+		Pe: req.Pe, Pn: req.Pn, Kind: req.Kind, V: v, Name: name,
+		TS: now, Deadline: now.Add(s.expiry), Token: newToken(),
 	}
 	s.ledger.Claims = append(s.ledger.Claims, c)
 	s.persist()
