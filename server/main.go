@@ -51,6 +51,9 @@ type server struct {
 // The 3x3 neighbourhood comes live from the EEA service; callers hold
 // s.mu.
 func (s *server) pledgeable(pe, pn int, now time.Time) error {
+	if !inEurope(pe, pn) {
+		return errors.New("outside the European grid")
+	}
 	if c := s.ledger.activeAt(pe, pn, now); c != nil {
 		return errors.New("already " + c.status(now))
 	}
@@ -331,6 +334,10 @@ func (s *server) handleWatch(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if !inEurope(req.Pe, req.Pn) {
+		writeErr(w, http.StatusConflict, "outside the European grid")
+		return
+	}
 	nb, err := s.eea.neighborhood(req.Pe, req.Pn)
 	if err != nil {
 		writeErr(w, http.StatusBadGateway,

@@ -81,6 +81,15 @@ export function pixelCenter(pe, pn) {
   return fromLAEA(pe * 10 + 5, pn * 10 + 5)
 }
 
+// inEurope guards against garbage pixel keys — notably pre-V3
+// permalinks (#x,y in a local 454-pixel grid), which decode to the
+// middle of the Atlantic. Bounds are the EPSG:3035 domain the
+// imperviousness layer actually covers, generously.
+export function inEurope(pe, pn) {
+  return pe >= 100_000 && pe <= 750_000 &&
+    pn >= 90_000 && pn <= 550_000
+}
+
 // Corners of a continent pixel as a lon/lat polygon ring (closed).
 export function pixelRing(pe, pn) {
   const e = pe * 10

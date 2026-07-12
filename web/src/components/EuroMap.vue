@@ -7,6 +7,7 @@ import {
   fromLAEA,
   pixelCenter,
   pixelRing,
+  inEurope,
 } from '../lib/proj.js'
 import { computeCandidates, CANDIDATE_COLOR } from '../lib/grid.js'
 import {
@@ -273,6 +274,7 @@ function frontline() {
 // Instant, not animated: permalinks and "go to my pledge" should
 // arrive, not tour the continent.
 function goTo(pe, pn) {
+  if (!inEurope(pe, pn)) return
   if (!map) {
     pendingGoTo = [pe, pn]
     return

@@ -8,6 +8,7 @@ import Legend from './components/Legend.vue'
 import MapControls from './components/MapControls.vue'
 import { meanPenalty, flipsPerDegree, DAY_COEF, NIGHT_COEF }
   from './lib/heat.js'
+import { inEurope } from './lib/proj.js'
 import {
   myName,
   setMyName,
@@ -284,8 +285,13 @@ onMounted(async () => {
   if (m) {
     const pe = +m[1]
     const pn = +m[2]
-    selected.value = { pe, pn }
-    board.value?.goTo(pe, pn)
+    if (inEurope(pe, pn)) {
+      selected.value = { pe, pn }
+      board.value?.goTo(pe, pn)
+    } else {
+      // pre-V3 permalink (local grid coords) — not addressable anymore
+      history.replaceState(null, '', location.pathname + location.search)
+    }
   }
 })
 </script>

@@ -29,6 +29,13 @@ var (
 		(laeRq * math.Cos(beta1))
 )
 
+// inEurope guards against garbage pixel keys (e.g. pre-V3 permalink
+// coordinates): the EPSG:3035 domain the imperviousness layer covers.
+func inEurope(pe, pn int) bool {
+	return pe >= 100_000 && pe <= 750_000 &&
+		pn >= 90_000 && pn <= 550_000
+}
+
 func authalicQ(phi float64) float64 {
 	s := math.Sin(phi)
 	return (1 - laeE2) * (s/(1-laeE2*s*s) -
