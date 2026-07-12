@@ -51,10 +51,13 @@ endpoints are rate-limited per IP.
 
 On any city you can:
 
-- **pledge** a candidate pixel (hard-sealed touching green) — 90 days to
-  flip it or it returns to the pool, and every live claim counts as
-  green, opening its neighbours (the cascade)
-- **flip** it with an optional photo URL as proof
+- **pledge a cooling act** on a sealed square — **depave** it (front-
+  line squares only: hard-sealed touching green, and every live claim
+  opens its neighbours — the cascade), plant a **tree pit** or
+  brighten a **cool surface** (anywhere sealed). 90 days to do it or
+  the square returns to the pool
+- **mark it done** with an optional photo URL as proof; each act cools
+  the model with its own day/night signature
 - **watch** any sealed pixel you can't flip yourself — coalitions for
   public land
 - share a **permalink** to any square on the continent (`#pe,pn`); see

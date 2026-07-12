@@ -5,9 +5,11 @@ decisions answer to this file.
 
 - **Outcome:** a European instrument that shows every place's distance
   from *human-livable temperature* — day and night separately, night
-  is the killer — and makes closing that gap playable: desealing is
-  the lever, modeled °C-per-flip is the score, satellite LST is the
-  honesty check.
+  is the killer — and makes closing that gap playable: cooling acts
+  are the levers (depaving, tree shade, cool surfaces — anything with
+  a defensible day/night signature), modeled °C-per-act is the score,
+  satellite LST is the honesty check. (Amended 2026-07-12: depaving
+  is one way to fight temperature, not the definition of play.)
 - **User:** anyone with a body in a European summer. Cities, NGOs, and
   Tegelwippen-style orgs run competitions *on top of* the instrument —
   the maintainer does not run the movement.
