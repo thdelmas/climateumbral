@@ -39,7 +39,9 @@ const (
 )
 
 type server struct {
-	eea *eeaClient
+	eea     *eeaClient
+	hub     *hub
+	limiter *limiter
 
 	mu         sync.Mutex
 	ledger     *ledger
@@ -88,6 +90,7 @@ func (s *server) persist() {
 	if err := s.ledger.persist(s.ledgerPath); err != nil {
 		log.Printf("persist ledger: %v", err)
 	}
+	s.hub.notify()
 }
 
 // ---- views: what GET endpoints expose (never tokens) ----
@@ -422,6 +425,8 @@ func main() {
 	expiry := time.Duration(*expiryDays) * 24 * time.Hour
 	s := &server{
 		eea:        newEEA(),
+		hub:        newHub(),
+		limiter:    newLimiter(0.2, 5), // ~12 acts/min after a burst of 5
 		ledgerPath: filepath.Join(*dataDir, "claims.json"),
 		expiry:     expiry,
 	}
@@ -436,11 +441,13 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/raster", s.handleRaster)
 	mux.HandleFunc("GET /api/claims", s.handleGetLedger)
-	mux.HandleFunc("POST /api/claims", s.handlePledge)
-	mux.HandleFunc("POST /api/claims/{pe}/{pn}/flip", s.handleFlip)
-	mux.HandleFunc("DELETE /api/claims/{pe}/{pn}", s.handleAbandon)
-	mux.HandleFunc("POST /api/watches", s.handleWatch)
-	mux.HandleFunc("DELETE /api/watches/{pe}/{pn}", s.handleUnwatch)
+	mux.HandleFunc("POST /api/claims", s.limit(s.handlePledge))
+	mux.HandleFunc("POST /api/claims/{pe}/{pn}/flip", s.limit(s.handleFlip))
+	mux.HandleFunc("DELETE /api/claims/{pe}/{pn}", s.limit(s.handleAbandon))
+	mux.HandleFunc("POST /api/watches", s.limit(s.handleWatch))
+	mux.HandleFunc("DELETE /api/watches/{pe}/{pn}",
+		s.limit(s.handleUnwatch))
+	mux.HandleFunc("GET /api/events", s.handleEvents)
 	mux.HandleFunc("GET /api/leaderboard", s.handleLeaderboard)
 	health := func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})

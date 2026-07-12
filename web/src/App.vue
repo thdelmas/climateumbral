@@ -60,7 +60,7 @@ function setMode(m) {
 
 const candidateCount = computed(() => raster.value?.cands?.size ?? 0)
 const nightAvg = computed(() =>
-  raster.value ? meanPenalty(raster.value.S, NIGHT_COEF) : 0,
+  raster.value ? meanPenalty(raster.value.Snight, NIGHT_COEF) : 0,
 )
 const selLocal = computed(() => {
   const r = raster.value
@@ -76,10 +76,10 @@ const selValue = computed(() =>
 )
 const selHeat = computed(() => {
   const i = selLocal.value
-  if (i < 0 || raster.value.S[i] < 0) return null
+  if (i < 0 || raster.value.Snight[i] < 0) return null
   return {
-    day: DAY_COEF * raster.value.S[i],
-    night: NIGHT_COEF * raster.value.S[i],
+    day: DAY_COEF * raster.value.Sday[i],
+    night: NIGHT_COEF * raster.value.Snight[i],
     flips: flipsPerDegree(raster.value.g, i, raster.value.C),
   }
 })
@@ -280,6 +280,11 @@ function select(p) {
 }
 
 onMounted(async () => {
+  // live sync: any act by anyone refreshes every open map
+  // (?nolive opts out — headless renderers hang on open streams)
+  if (!new URLSearchParams(location.search).has('nolive')) {
+    new EventSource('/api/events').addEventListener('ledger', refresh)
+  }
   await refresh()
   const m = location.hash.match(/^#(\d+),(\d+)$/)
   if (m) {
