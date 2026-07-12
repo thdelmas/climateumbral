@@ -1,0 +1,5 @@
+*.raw
+*.tif
+grid.json
+__pycache__/
+.DS_Store
