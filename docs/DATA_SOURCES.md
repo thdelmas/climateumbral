@@ -35,9 +35,8 @@ exportImage?bbox=LONMIN,LATMIN,LONMAX,LATMAX&bboxSR=4326
            &imageSR=3035&size=W,H&format=tiff&pixelType=U8&f=json
 ```
 
-→ JSON with `href` to a TIFF. The TIFF is **uncompressed and tiled**
-(128×128 tiles): parseable in ~40 lines of stdlib Python. See
-`tools/fetch_grid.py`.
+→ JSON with `href` to a TIFF. The TIFF is **uncompressed and tiled** (128×128
+tiles): parseable in ~40 lines of stdlib Python. See `tools/fetch_grid.py`.
 
 ## Water mask: Copernicus HRL Water & Wetness (WAW)
 
@@ -56,16 +55,16 @@ Classes: 1 permanent water, 2 temporary water, 3/4 wetness, **253 = sea**.
    is NDVI-derived); park promenades read ~45 (gravel). Aggregate ≥3×3 before
    showing a number to a human.
 4. **IMD codes the sea as 0** ("not sealed"), not nodata — a naive render paints
-   the Mediterranean as a park. Join the WAW sea class (253) as a mask.
-   Coastal maps are wrong without it.
+   the Mediterranean as a park. Join the WAW sea class (253) as a mask. Coastal
+   maps are wrong without it.
 5. **WAW top-edge rows contain junk values** outside the class list at bbox
    edges. Use only classes 1–4 and 253; ignore everything else.
 
 ## Reference numbers (central Barcelona, 4.5 × 4.5 km, IMD 2018)
 
 - 54% of pixels are 90–100% sealed; <10% of the area is ≤10% sealed.
-- Candidate heuristic v1 (pixel ≥90% sealed with ≥3 of 8 neighbors ≤10%):
-  344 pixels = **3.4 ha of hard seal touching green**.
+- Candidate heuristic v1 (pixel ≥90% sealed with ≥3 of 8 neighbors ≤10%): 344
+  pixels = **3.4 ha of hard seal touching green**.
 - Collserola forest reads a clean 0; Eixample block mean ≈ 73%.
 
 ## Adjacent sources (unverified, for later)
