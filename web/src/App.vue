@@ -3,6 +3,7 @@ import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import MapBoard from './components/MapBoard.vue'
 import PixelPanel from './components/PixelPanel.vue'
 import Leaderboard from './components/Leaderboard.vue'
+import ScoreBar from './components/ScoreBar.vue'
 import { computeCandidates } from './lib/grid.js'
 import {
   myName,
@@ -10,6 +11,9 @@ import {
   tokenFor,
   rememberToken,
   forgetToken,
+  allTokens,
+  openedTotal,
+  addOpened,
 } from './lib/local.js'
 
 const meta = ref(null)
@@ -28,6 +32,8 @@ const error = ref('')
 const lastOpened = ref(null)
 const pledgedM2 = ref(0)
 const flippedM2 = ref(0)
+const opened = ref(openedTotal())
+const board = ref(null)
 
 watch(name, (n) => setMyName(n.trim()))
 
@@ -38,6 +44,87 @@ const openedLabel = computed(() =>
 )
 
 const idx = (c) => c.y * meta.value.width + c.x
+
+// ---- personal score: my acts are the ones whose tokens I hold ----
+
+const mine = computed(() => {
+  version.value // recompute when the ledger refreshes
+  const list = []
+  for (const key of Object.keys(allTokens('claim'))) {
+    const [x, y] = key.split(',').map(Number)
+    const c = claimAt.value.get(y * meta.value.width + x)
+    if (c) list.push(c)
+  }
+  return list
+})
+const mineSet = computed(
+  () => new Set(mine.value.map((c) => idx(c))),
+)
+const myPledges = computed(() =>
+  mine.value.filter((c) => c.status === 'pledged'),
+)
+const myFlipped = computed(() =>
+  mine.value.filter((c) => c.status === 'flipped'),
+)
+const myWatchCount = computed(() => {
+  version.value
+  return Object.keys(allTokens('watch')).filter((key) => {
+    const [x, y] = key.split(',').map(Number)
+    return watchesAt.value.has(y * meta.value.width + x)
+  }).length
+})
+const myRank = computed(() => {
+  const n = name.value.trim()
+  if (!n) return 0
+  return leaders.value.findIndex((r) => r.name === n) + 1
+})
+const daysLeft = (c) =>
+  Math.max(0, Math.ceil((new Date(c.deadline) - Date.now()) / 86_400_000))
+const nextPledge = computed(() =>
+  [...myPledges.value].sort(
+    (a, b) => new Date(a.deadline) - new Date(b.deadline),
+  )[0] ?? null,
+)
+
+// The mission: always one obvious next move.
+const mission = computed(() => {
+  if (!mine.value.length) {
+    return {
+      text: 'Your first move: claim 100 m² of concrete on the front line.',
+      btn: '→ find me a square',
+      goto: null,
+    }
+  }
+  const p = nextPledge.value
+  if (p) {
+    return {
+      text:
+        `You promised square ${p.x},${p.y} — ` +
+        `${daysLeft(p)} days left to flip it.`,
+      btn: 'go to my pledge',
+      goto: p,
+    }
+  }
+  return {
+    text:
+      `All your pledges are flipped — ` +
+      `${myFlipped.value.length * 100} m² breathing again. Open a new front?`,
+    btn: '→ find me a square',
+    goto: null,
+  }
+})
+
+function onMission() {
+  const m = mission.value
+  if (!m.goto) {
+    board.value?.frontline()
+    return
+  }
+  const p = { x: m.goto.x, y: m.goto.y, i: idx(m.goto) }
+  selected.value = p
+  board.value?.goTo(p.x, p.y)
+  history.replaceState(null, '', `#${p.x},${p.y}`)
+}
 
 async function refresh() {
   const res = await fetch('/api/claims')
@@ -116,6 +203,8 @@ async function pledge() {
       0,
       candidates.value.size - (before - 1),
     )
+    addOpened(lastOpened.value)
+    opened.value = openedTotal()
   }
 }
 
@@ -191,7 +280,7 @@ onMounted(async () => {
       </p>
       <ol class="steps">
         <li>
-          Hit <b>“take me to the front line”</b> — it zooms to an
+          Hit <b>“find me a square”</b> — it zooms to an
           <b>orange</b> square: sealed ground touching life.
         </li>
         <li>
@@ -209,31 +298,33 @@ onMounted(async () => {
       </label>
     </header>
 
-    <div v-if="meta" class="counter">
-      <span>
-        <strong>{{ flippedM2.toLocaleString() }}</strong> m² flipped
-      </span>
-      <span>
-        <strong>{{ pledgedM2.toLocaleString() }}</strong> m² pledged
-      </span>
-      <span>
-        <strong>{{ candidates.size.toLocaleString() }}</strong>
-        candidates on the front line
-      </span>
-      <span v-if="lastOpened !== null" class="opened">
-        {{ openedLabel }}
-      </span>
-    </div>
+    <ScoreBar
+      v-if="grid"
+      :mission="mission"
+      :has-acts="mine.length > 0 || myWatchCount > 0"
+      :my-flipped-m2="myFlipped.length * 100"
+      :my-pledged-m2="myPledges.length * 100"
+      :my-watch-count="myWatchCount"
+      :opened="opened"
+      :my-rank="myRank"
+      :flipped-m2="flippedM2"
+      :pledged-m2="pledgedM2"
+      :candidate-count="candidates.size"
+      :opened-label="lastOpened !== null ? openedLabel : null"
+      @mission="onMission"
+    />
     <p v-if="error" class="error">{{ error }}</p>
 
     <template v-if="grid">
       <MapBoard
+        ref="board"
         :grid="grid"
         :meta="meta"
         :pledged="pledged"
         :flipped="flipped"
         :watched="watched"
         :candidates="candidates"
+        :mine="mineSet"
         :selected="selected"
         :version="version"
         @select="select"
@@ -246,6 +337,7 @@ onMounted(async () => {
         <span><i style="background: rgb(150, 118, 220)" /> watched</span>
         <span><i style="background: rgb(61, 61, 68)" /> sealed</span>
         <span><i style="background: rgb(46, 107, 62)" /> green</span>
+        <span><i class="mine-chip" /> yours</span>
       </div>
       <PixelPanel
         v-if="selected"
@@ -327,6 +419,10 @@ header h1 {
   border-radius: 3px;
   display: inline-block;
 }
+.legend i.mine-chip {
+  background: transparent;
+  border: 2px solid var(--ink);
+}
 .who {
   display: inline-flex;
   gap: 8px;
@@ -342,27 +438,6 @@ header h1 {
   border: 1px solid var(--line);
   background: var(--card);
   color: var(--ink);
-}
-.counter {
-  display: flex;
-  gap: 18px;
-  flex-wrap: wrap;
-  align-items: baseline;
-  margin: 20px 0 14px;
-  padding: 12px 16px;
-  border-radius: 8px;
-  background: var(--card);
-  border: 1px solid var(--line);
-  font-variant-numeric: tabular-nums;
-  font-size: 14.5px;
-}
-.counter strong {
-  font-size: 20px;
-  color: var(--accent);
-}
-.opened {
-  color: var(--accent);
-  font-weight: 600;
 }
 .error {
   color: #b3423a;

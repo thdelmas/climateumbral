@@ -38,3 +38,17 @@ export function forgetToken(kind, x, y) {
   if (state[kind]) delete state[kind][`${x},${y}`]
   write(state)
 }
+
+export function allTokens(kind) {
+  return { ...(read()[kind] ?? {}) }
+}
+
+export function openedTotal() {
+  return read().opened ?? 0
+}
+
+export function addOpened(n) {
+  const state = read()
+  state.opened = (state.opened ?? 0) + n
+  write(state)
+}

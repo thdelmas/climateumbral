@@ -17,6 +17,7 @@ const props = defineProps({
   flipped: Set,
   watched: Set,
   candidates: Set,
+  mine: Set, // pixels whose claim token this browser holds
   selected: Object, // {x, y, i} or null
   version: Number, // bumped by the parent to trigger a redraw
 })
@@ -80,6 +81,16 @@ function draw() {
     dpr * (cssH / 2 - view.cy * s),
   )
   ctx.drawImage(off, 0, 0)
+  for (const i of props.mine ?? []) {
+    const x = i % props.meta.width
+    const y = Math.floor(i / props.meta.width)
+    ctx.lineWidth = 1.6 / s
+    ctx.strokeStyle = 'rgba(0,0,0,.85)'
+    ctx.strokeRect(x + 0.08, y + 0.08, 0.84, 0.84)
+    ctx.lineWidth = 0.8 / s
+    ctx.strokeStyle = '#ffffff'
+    ctx.strokeRect(x + 0.08, y + 0.08, 0.84, 0.84)
+  }
   if (props.selected) {
     const { x, y } = props.selected
     ctx.lineWidth = 4 / s
@@ -111,8 +122,9 @@ function pixelAt(e) {
 
 function tipText(p) {
   const v = props.grid[p.i]
-  if (props.flipped.has(p.i)) return 'flipped — soil again'
-  if (props.pledged.has(p.i)) return 'pledged — click for details'
+  const yours = props.mine?.has(p.i) ? 'your ' : ''
+  if (props.flipped.has(p.i)) return `${yours}flip — soil again`
+  if (props.pledged.has(p.i)) return `${yours}pledge — click for details`
   if (props.candidates.has(p.i)) return 'candidate! click to claim it'
   if (props.watched.has(p.i)) return 'watched — click to join'
   if (v === SEA) return 'the sea'
@@ -196,6 +208,14 @@ function fit() {
   draw()
 }
 
+function goTo(x, y, zoom = 14) {
+  view.cx = x + 0.5
+  view.cy = y + 0.5
+  view.zoom = zoom
+  clampView()
+  draw()
+}
+
 // Jump to a random candidate, zoomed in enough to click comfortably.
 function frontline() {
   const arr = [...props.candidates]
@@ -203,11 +223,7 @@ function frontline() {
   const i = arr[Math.floor(Math.random() * arr.length)]
   const x = i % props.meta.width
   const y = Math.floor(i / props.meta.width)
-  view.cx = x + 0.5
-  view.cy = y + 0.5
-  view.zoom = 14
-  clampView()
-  draw()
+  goTo(x, y)
   emit('select', { x, y, i })
 }
 
@@ -233,15 +249,16 @@ watch(() => props.version, () => {
   draw()
 })
 watch(() => props.selected, draw)
+watch(() => props.mine, draw)
 
-defineExpose({ frontline })
+defineExpose({ frontline, goTo })
 </script>
 
 <template>
   <div class="board">
     <div class="controls">
       <button class="go" @click="frontline">
-        → take me to the front line
+        → find me a square
       </button>
       <span class="spacer" />
       <button @click="zoomBy(1 / 1.5)" aria-label="zoom out">−</button>
