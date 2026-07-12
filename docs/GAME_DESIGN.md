@@ -47,6 +47,35 @@ reconcile at the next satellite epoch.
 - **Reward/pressure**: ranking + trajectory. Pledges don't move the number;
   pixels do.
 
+## Heat — the currency
+
+Intent-confirmed (see INTENT.md): the score people feel is not
+hectares, it is degrees. Every place gets a **delta from human-livable
+temperature**, day and night as separate layers with separate optima —
+an active body in shade versus a sleeping body at ~19 °C. Night is the
+layer that kills: heatwave mortality tracks tropical nights, and night
+is where sealed thermal mass does its damage, radiating the day's sun
+back until dawn. A park cools after sunset; a parking lot does not.
+
+- **Display:** heatmap of degrees-above-livable (UTCI/PET-style
+  comfort framing), day layer and night layer.
+- **Score:** modeled °C per flip; city leaderboards read in modeled
+  degrees cooled, not m². The m² stays the ledger unit — degrees are
+  what the m² *means*.
+- **Audit:** measured LST (Sentinel-3 / MODIS, day and night passes)
+  is the annual honesty check. The game never claims measured
+  attribution of cooling; the model scores, the satellite audits.
+
+Data caveat: LST is ~1 km native, sealed-% is 10 m. The delta map is
+therefore a *downscaled model* (LST calibrated against imperviousness
+and land cover) and must be labeled modeled. Rule 1 applies to degrees
+exactly as it applies to m²: modeled and measured never mix.
+
+Sustainability note (the binding constraint is money ≈ 0): open data
+only, infra one person can run. If monetization exists it sustains the
+project — municipal heat-adaptation targeting reports/API from the
+same engine — never ads, never user data (rule 5).
+
 ## Presence & exposure — the stake layer
 
 Where the tiers define *who scores how*, this layer defines *which pixels are
@@ -55,11 +84,13 @@ living) and Happn's crossed paths (people whose territories overlap). The
 generalization: your **stake** in a place is proportional to the time you spend
 there.
 
-**Exposure** is the personal metric: your time-weighted sealed-%, the same shape
-as an environmental-health exposure score (time × condition, summed over
-places). "82% of your waking hours happen on 74% sealed ground" is the most
-personal argument for depaving that can exist — and it is improvable in your own
-self-interest, because your places are weighted by the hours you live in them.
+**Exposure** is the personal metric: your time-weighted distance from
+livable temperature (with sealed-% as its proxy until the heat layer
+ships) — the same shape as an environmental-health exposure score
+(time × condition, summed over places). "Your summer runs +7° above
+livable" is the most personal argument for depaving that can exist —
+and it is improvable in your own self-interest, because your places
+are weighted by the hours you live in them.
 
 Three levels of the same concept, in build order:
 

@@ -90,7 +90,9 @@ const nextPledge = computed(() =>
 const mission = computed(() => {
   if (!mine.value.length) {
     return {
-      text: 'Your first move: claim 100 m² of concrete on the front line.',
+      text:
+        'Your first move: find a square on the front line — pledge it ' +
+        'if it is yours to flip, watch it if not.',
       btn: '→ find me a square',
       goto: null,
     }
@@ -284,13 +286,16 @@ onMounted(async () => {
           <b>orange</b> square: sealed ground touching life.
         </li>
         <li>
-          <b>Pledge</b> it — a public promise to depave those 100 m²
-          within 90 days.
+          Yours to flip (your yard, your façade)? <b>Pledge</b> it — a
+          public promise to depave those 100 m² within 90 days.
         </li>
-        <li>Depave for real, then <b>mark it flipped</b> (photo link
+        <li>
+          Not yours to touch (a road, a schoolyard — most squares)?
+          <b>Watch</b> it — watchers form the coalition that gets it
+          flipped.
+        </li>
+        <li>Depaved for real? <b>Mark it flipped</b> (photo link
           welcome).</li>
-        <li>Can't flip it yourself (a road, a schoolyard)?
-          <b>Watch</b> it — watchers form the coalition.</li>
       </ol>
       <label class="who">
         I am

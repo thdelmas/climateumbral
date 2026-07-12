@@ -71,12 +71,15 @@ python3 tools/fetch_grid.py 2.14 41.375 2.19 41.41 -o bcn
 
 ## Roadmap
 
-- **V1 — the map**: slippy map (MapLibre) over the EU imperviousness layers with
-  live candidate detection; shareable permalinks to any spot.
-- **V2 — the counter**: log flipped m², tegelwippen-style public ledger;
-  leaderboards by municipality size class.
-- **V3 — the audit**: score regions/governments on *measured* de-sealing between
-  Copernicus epochs — pledges don't count, pixels do.
+- **V2 — the heat layer**: every pixel's delta from *human-livable
+  temperature*, day and night separately (night is the killer); flips
+  scored in modeled °C cooled; city leaderboards in degrees, not
+  hectares. See `docs/INTENT.md`.
+- **V3 — every city**: slippy map (MapLibre) over the EU imperviousness
+  layers with live candidate detection; leaderboards by municipality
+  size class.
+- **V4 — the audit**: score regions/governments on *measured* de-sealing
+  and LST between satellite epochs — pledges don't count, pixels do.
 
 See `docs/GAME_DESIGN.md` for the incentive design across levels and
 `docs/DATA_SOURCES.md` for verified endpoints and their traps.

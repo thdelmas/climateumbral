@@ -89,6 +89,9 @@ async function copyLink() {
 
     <div v-if="isCandidate && !claim" class="row muted">
       This square is on the front line: sealed, but touching life.
+      Pledge it only if it is legally yours to depave — if it is a
+      road, a lot, someone else's ground (most squares are), watch it
+      instead and build the coalition.
     </div>
     <div class="row actions">
       <button v-if="isCandidate && !claim" @click="emit('pledge')">

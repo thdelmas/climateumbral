@@ -125,7 +125,9 @@ function tipText(p) {
   const yours = props.mine?.has(p.i) ? 'your ' : ''
   if (props.flipped.has(p.i)) return `${yours}flip — soil again`
   if (props.pledged.has(p.i)) return `${yours}pledge — click for details`
-  if (props.candidates.has(p.i)) return 'candidate! click to claim it'
+  if (props.candidates.has(p.i)) {
+    return 'candidate — click: pledge it or watch it'
+  }
   if (props.watched.has(p.i)) return 'watched — click to join'
   if (v === SEA) return 'the sea'
   if (v === NODATA) return 'no data'
