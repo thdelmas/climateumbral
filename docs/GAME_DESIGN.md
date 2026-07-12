@@ -42,6 +42,50 @@ next satellite epoch.
 - **Reward/pressure**: ranking + trajectory. Pledges don't move the number;
   pixels do.
 
+## Presence & exposure — the stake layer
+
+Where the tiers define *who scores how*, this layer defines *which pixels
+are yours to care about*. Inspiration: Zenly's footsteps (the map you've
+painted by living) and Happn's crossed paths (people whose territories
+overlap). The generalization: your **stake** in a place is proportional
+to the time you spend there.
+
+**Exposure** is the personal metric: your time-weighted sealed-%, the
+same shape as an environmental-health exposure score (time × condition,
+summed over places). "82% of your waking hours happen on 74% sealed
+ground" is the most personal argument for depaving that can exist — and
+it is improvable in your own self-interest, because your places are
+weighted by the hours you live in them.
+
+Three levels of the same concept, in build order:
+
+1. **Exposure-ranked candidates** (now, server-side, no tracking).
+   Weight the candidate detector by estimated human-hours from open
+   data: population density, schools, playgrounds, plazas, transit
+   stops. A sealed schoolyard holding 400 kids × 6 h beats an empty
+   logistics lot at any sealed-%. Second axis next to gray-touching-
+   green: ecological leverage × human leverage.
+2. **Personal front line** (native app, on-device only). The phone
+   keeps its own dwell-time histogram, intersects it with locally
+   downloaded grid tiles, and shows *your* streets' candidates and
+   *your* exposure. Nothing leaves the device.
+3. **Crossing coalitions** (opt-in only). People whose stakes overlap
+   on a pixel are the coalition for it: "3 others watch this square"
+   is matchmaking for a depave. Contested demand is not a conflict —
+   it is the petition forming itself.
+
+Valence rule, non-negotiable: **time = stake, never blame.** Dwell-time
+responsibility would punish exactly the people with the least power over
+their environment (renters, schoolkids, warehouse workers — the tenant
+dwells in the courtyard the landlord owns). Presence grants standing and
+first sight of a place's candidates; it never assigns guilt and never
+scores. Score stays what the ledger says: claims and flips.
+
+Exposure and score stay separate for the same reason claimed and
+measured do (rule 1): if exposure were the score, the optimal move would
+be sitting in parks, and nothing would get depaved. Exposure is the
+mirror that motivates; the ledger is what counts.
+
 ## Design rules
 
 1. **Claimed vs measured are separate columns, always.** Mixing them is the
@@ -56,6 +100,11 @@ next satellite epoch.
    trust.
 6. **Verification degrades gracefully.** Where the satellite can't see (canopy
    over asphalt, sub-pixel flips), the ledger stays honest about its error bars.
+7. **Presence data never leaves the device.** A project whose moral authority
+   is auditing others with satellites cannot itself run location surveillance.
+   Dwell histograms are computed and kept on the phone; only explicit acts
+   (claims, flips, opt-in watches) reach the server. Rule 5, applied to the
+   most sensitive data class there is.
 
 ## Known data caveats the design must absorb
 
