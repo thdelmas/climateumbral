@@ -98,11 +98,15 @@ lever, not the definition of play. An act is any intervention with a
 defensible cooling signature. v0 act kinds, each with its own day /
 night physics in the model:
 
-| act              | day effect        | night effect      | why |
-|------------------|-------------------|-------------------|-----|
-| **depave**       | full (s → 0)      | full (s → 0)      | soil neither absorbs like asphalt nor banks heat |
-| **tree**         | full (shade)      | none              | canopy blocks sun; the mass under it still releases at night |
-| **cool surface** | strong (s × 0.4)  | slight (s × 0.9)  | albedo reflects solar gain; some banked heat avoided |
+| act              | day effect       | night effect     |
+|------------------|------------------|------------------|
+| **depave**       | full (s → 0)     | full (s → 0)     |
+| **tree**         | full (shade)     | none             |
+| **cool surface** | strong (s × 0.4) | slight (s × 0.9) |
+
+Why: soil neither absorbs like asphalt nor banks heat; canopy blocks
+sun but the mass under it still releases at night; albedo reflects
+solar gain and avoids a little banked heat.
 
 Validation differs per act. Depave keeps the front-line rule (hard-
 sealed touching ≥3 green-or-claimed — extend life, don't pot it).
