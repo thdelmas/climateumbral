@@ -120,12 +120,36 @@ async function copyLink() {
       Not on the front line — but a tree pit shades the day and a cool
       surface reflects it, anywhere sealed.
     </div>
-    <div v-if="sealed && !claim" class="row muted">
-      Pledge only ground you may legally change. Can't act here
-      yourself? Join the block — a standing petition local governance
-      can see, scored by how the block's nights cool from the day you
-      sign.
-    </div>
+    <details v-if="sealed && !claim" class="legal">
+      <summary>
+        Pledge only ground you may legally change — the legal path
+      </summary>
+      <ul>
+        <li>
+          <b>Your own ground</b> (garden, courtyard, roof): usually
+          yours to depave, plant or brighten. Check for pipes and
+          cables before digging — every country has a free
+          call-before-you-dig service — and heritage rules before
+          painting.
+        </li>
+        <li>
+          <b>Rented or shared</b>: the owner's or association's
+          written yes first. A planter needs nobody's permission.
+        </li>
+        <li>
+          <b>Public street, school, lot</b> — most squares: never
+          pry it yourself. Ask your city instead: façade-garden
+          schemes, tree-pit adoption, official depave programs. And
+          join this block's petition — always legal, everywhere,
+          scored by how the block's nights cool from the day you
+          sign.
+        </li>
+      </ul>
+      <p>
+        Rules are local — your city hall decides. This is education,
+        not legal advice.
+      </p>
+    </details>
     <div class="row actions">
       <template v-if="sealed && !claim">
         <button v-if="isCandidate" @click="emit('pledge', 'depave')">
@@ -179,6 +203,24 @@ async function copyLink() {
 }
 .muted {
   color: var(--ink-2);
+}
+.legal {
+  margin-top: 8px;
+  color: var(--ink-2);
+}
+.legal summary {
+  cursor: pointer;
+}
+.legal ul {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+.legal li + li {
+  margin-top: 4px;
+}
+.legal p {
+  margin-top: 6px;
+  font-size: 13px;
 }
 .heat {
   color: var(--ink-2);

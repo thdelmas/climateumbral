@@ -22,7 +22,7 @@ export function tipTextAt(raster, claims, mode, pe, pn) {
   if (claim?.status === 'flipped') return 'done — cooler for real'
   if (claim) return 'pledged — click for details'
   if (i >= 0 && raster.cands?.has(i)) {
-    return 'candidate — click: pledge it or watch it'
+    return 'candidate — click: pledge it or join its block'
   }
   if (v === null) return null
   if (v === SEA) return 'water'

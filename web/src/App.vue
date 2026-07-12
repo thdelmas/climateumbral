@@ -339,8 +339,9 @@ onMounted(async () => {
           <b>orange</b> square: sealed ground touching life.
         </li>
         <li>
-          Yours to change? <b>Pledge a cooling act</b> — depave it,
-          plant a tree pit, brighten the surface — 90 days to do it.
+          Yours to change — legally? <b>Pledge a cooling act</b> —
+          depave it, plant a tree pit, brighten the surface — 90 days
+          to do it. Unsure? Every square's panel shows the legal path.
         </li>
         <li>
           Not yours to touch (a road, a schoolyard — most squares)?

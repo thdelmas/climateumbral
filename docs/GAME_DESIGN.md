@@ -213,8 +213,14 @@ answer.
 7. **Presence data never leaves the device.** A project whose moral authority is
    auditing others with satellites cannot itself run location surveillance.
    Dwell histograms are computed and kept on the phone; only explicit acts
-   (claims, flips, opt-in watches) reach the server. Rule 5, applied to the most
+   (claims, flips, block joins) reach the server. Rule 5, applied to the most
    sensitive data class there is.
+8. **The game never asks for an illegal act.** Depaving ground you don't
+   control is criminal damage in most jurisdictions, whatever the motive.
+   Every act pitch names its lawful route (LEGALITY.md — the tenure ladder:
+   own ground / rented / public); squares the player cannot lawfully touch
+   route to city programs and the block petition, and no square's only
+   visible move is unlawful.
 
 ## Known data caveats the design must absorb
 
@@ -232,7 +238,8 @@ answer.
 - Most sealed pixels are land the player cannot legally touch (roads,
   municipal lots, other people's property). Tegelwippen works on *own
   gardens*. Candidates need a tenure hint: plausibly-yours (flip it) vs
-  public/institutional (watch it, petition it) — never "go depave the road."
+  public/institutional (join the block petition) — never "go depave the road."
+  Rule 8 makes this binding; LEGALITY.md is the education the product ships.
 - The ledger is already location data: a pseudonym's claims cluster around
   their home. GDPR discipline (minimal fields, right to erasure, no
   IP-to-claim linkage kept) starts at V1.5, not at the native app.

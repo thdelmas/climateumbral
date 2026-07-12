@@ -256,7 +256,7 @@ function setOverlayVisible(on) {
   }
 }
 
-// ---- claims / watches / selection as vector layers ----
+// ---- claims / blocks / selection as vector layers ----
 
 function syncLedger() {
   map.getSource('claims')?.setData(

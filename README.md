@@ -58,11 +58,19 @@ On any city you can:
   the square returns to the pool
 - **mark it done** with an optional photo URL as proof; each act cools
   the model with its own day/night signature
-- **watch** any sealed pixel you can't flip yourself — coalitions for
+- **join the block** of any square you can't flip yourself — a
+  standing, revocable petition local governance can see, scored by
+  how the block's nights cool from the day you sign — coalitions for
   public land
 - share a **permalink** to any square on the continent (`#pe,pn`); see
   the **ledger** with flipped and pledged m² in separate columns,
   always
+
+Every square's panel teaches the **legal path**: your own ground you
+may flip (utilities check first); rented needs the owner's yes; public
+land — most of the board — routes to city programs (façade gardens,
+tree-pit adoption, depave weeks) and the block petition. The game
+never asks for an illegal act — see `docs/LEGALITY.md`.
 
 No accounts: a pseudonym plus a per-act bearer token (kept by your
 browser) that lets you flip or erase your own acts — the ledger stores
