@@ -6,10 +6,14 @@ import {
   toLAEA,
   fromLAEA,
   pixelCenter,
-  pixelRing,
   inEurope,
 } from '../lib/proj.js'
-import { computeCandidates, CANDIDATE_COLOR } from '../lib/grid.js'
+import { ledgerGeojson, selectionGeojson } from '../lib/ledgergeo.js'
+import {
+  computeCandidates,
+  colorFor,
+  CANDIDATE_COLOR,
+} from '../lib/grid.js'
 import {
   sealedStats,
   heatColor,
@@ -104,15 +108,36 @@ async function refreshRaster() {
     [bo.getWest(), bo.getNorth()],
     [bo.getEast(), bo.getNorth()],
   ].map(([lo, la]) => toLAEA(lo, la))
-  const e0 = Math.min(...corners.map((c) => c[0]))
-  const e1 = Math.max(...corners.map((c) => c[0]))
-  const n0 = Math.min(...corners.map((c) => c[1]))
-  const n1 = Math.max(...corners.map((c) => c[1]))
+  let e0 = Math.min(...corners.map((c) => c[0]))
+  let e1 = Math.max(...corners.map((c) => c[0]))
+  let n0 = Math.min(...corners.map((c) => c[1]))
+  let n1 = Math.max(...corners.map((c) => c[1]))
   if ((e1 - e0) / 10 > MAX_DIM || (n1 - n0) / 10 > MAX_DIM) {
     hint.value = 'zoom in a little more to load the front line'
     setOverlayVisible(false)
     return
   }
+  // Panning inside the last fetch shouldn't refetch: if the viewport
+  // still fits in the loaded raster, everything is already on screen.
+  const r = raster
+  if (
+    r &&
+    e0 >= r.pe0 * 10 && n0 >= r.pn0 * 10 &&
+    e1 <= (r.pe0 + r.W) * 10 && n1 <= (r.pn0 + r.H) * 10
+  ) {
+    updateHint()
+    return
+  }
+  // Fetch with margin so small pans and the zoom-in after "find me a
+  // square" reuse the same raster instead of a new EEA round-trip.
+  const pad = (hi, lo) =>
+    Math.min((hi - lo) * 0.3, (MAX_DIM * 10 - (hi - lo)) / 2)
+  const padE = Math.max(0, pad(e1, e0))
+  const padN = Math.max(0, pad(n1, n0))
+  e0 -= padE
+  e1 += padE
+  n0 -= padN
+  n1 += padN
   loading.value = true
   try {
     const res = await fetch(`/api/raster?bbox=${e0},${n0},${e1},${n1}`)
@@ -182,6 +207,11 @@ function paintOverlay() {
     } else if (cands.has(i)) {
       c = CANDIDATE_COLOR
       a = 255
+    } else if (g[i] <= 100) {
+      // the sealed-soil ramp: gray-green ground truth, the layer to
+      // correlate with the heat views (sea/nodata stay transparent)
+      c = colorFor(g[i])
+      a = 235
     }
     if (c) {
       im.data[i * 4] = c[0]
@@ -205,13 +235,23 @@ function paintOverlay() {
       url: overlay.toDataURL(),
       coordinates: quad,
     })
-    map.addLayer(
-      { id: 'game', type: 'raster', source: 'game',
-        paint: { 'raster-resampling': 'nearest' } },
-      'claims-fill',
-    )
   }
+  ensureGameLayer()
   setOverlayVisible(true)
+}
+
+// A permalink session can paint before the style's load handler has
+// added the claims layers; inserting "before claims-fill" then fails
+// and would leave the overlay invisible forever. Add the layer with
+// whatever anchor exists and let the load handler restore order.
+function ensureGameLayer() {
+  if (map.getLayer('game')) return
+  const before = map.getLayer('claims-fill') ? 'claims-fill' : undefined
+  map.addLayer(
+    { id: 'game', type: 'raster', source: 'game',
+      paint: { 'raster-resampling': 'nearest' } },
+    before,
+  )
 }
 
 function quadOf(e0, n0, e1, n1) {
@@ -231,52 +271,10 @@ function setOverlayVisible(on) {
 
 // ---- claims / watches / selection as vector layers ----
 
-function ledgerGeojson() {
-  const feats = []
-  for (const c of props.claims) {
-    feats.push({
-      type: 'Feature',
-      properties: {
-        kind: c.status,
-        key: key(c.pe, c.pn),
-        mine: props.mineKeys.has(key(c.pe, c.pn)),
-      },
-      geometry: { type: 'Polygon', coordinates: [pixelRing(c.pe, c.pn)] },
-    })
-  }
-  const seen = new Set(feats.map((f) => f.properties.key))
-  for (const w of props.watches) {
-    const k = key(w.pe, w.pn)
-    if (seen.has(k)) continue
-    seen.add(k)
-    feats.push({
-      type: 'Feature',
-      properties: { kind: 'watched', key: k,
-        mine: props.mineKeys.has(k) },
-      geometry: { type: 'Polygon', coordinates: [pixelRing(w.pe, w.pn)] },
-    })
-  }
-  return { type: 'FeatureCollection', features: feats }
-}
-
-function selectionGeojson() {
-  if (!props.selected) return { type: 'FeatureCollection', features: [] }
-  return {
-    type: 'FeatureCollection',
-    features: [{
-      type: 'Feature',
-      properties: {},
-      geometry: {
-        type: 'Polygon',
-        coordinates: [pixelRing(props.selected.pe, props.selected.pn)],
-      },
-    }],
-  }
-}
-
 function syncLedger() {
-  map.getSource('claims')?.setData(ledgerGeojson())
-  map.getSource('selection')?.setData(selectionGeojson())
+  map.getSource('claims')?.setData(
+    ledgerGeojson(props.claims, props.watches, props.mineKeys))
+  map.getSource('selection')?.setData(selectionGeojson(props.selected))
 }
 
 // ---- interactions ----
@@ -284,14 +282,14 @@ function syncLedger() {
 function frontline() {
   if (!raster || !raster.cands?.size) {
     pendingFrontline = true
-    map.flyTo({ center: [2.165, 41.39], zoom: 15.5 }) // Barcelona
+    map.flyTo({ center: [2.165, 41.39], zoom: 15.5, speed: 2.4 })
     return
   }
   const arr = [...raster.cands]
   const i = arr[Math.floor(Math.random() * arr.length)]
   const pe = raster.pe0 + (i % raster.W)
   const pn = raster.pn0 + (raster.H - 1 - Math.floor(i / raster.W))
-  map.flyTo({ center: pixelCenter(pe, pn), zoom: 16.5 })
+  map.flyTo({ center: pixelCenter(pe, pn), zoom: 16.5, speed: 2.4 })
   emit('select', { pe, pn })
 }
 
@@ -357,11 +355,15 @@ onMounted(() => {
     attributionControl: { compact: true },
   })
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }))
+  map.on('error', (e) => console.error('map:', e.error ?? e))
   map.on('load', () => {
-    map.addSource('claims', { type: 'geojson', data: ledgerGeojson() })
+    map.addSource('claims', {
+      type: 'geojson',
+      data: ledgerGeojson(props.claims, props.watches, props.mineKeys),
+    })
     map.addSource('selection', {
       type: 'geojson',
-      data: selectionGeojson(),
+      data: selectionGeojson(props.selected),
     })
     map.addLayer({
       id: 'claims-fill',
@@ -390,6 +392,9 @@ onMounted(() => {
       source: 'selection',
       paint: { 'line-color': '#ffffff', 'line-width': 2.5 },
     })
+    // a pre-load paint may have added the game layer unanchored;
+    // restore the intended order now that the claim layers exist
+    if (map.getLayer('game')) map.moveLayer('game', 'claims-fill')
     basemapMood()
     refreshRaster()
     if (pendingGoTo) {
@@ -442,6 +447,7 @@ defineExpose({ frontline, goTo })
     >
       {{ tip.text }}
     </div>
+    <div v-if="loading" class="loading">loading the front line…</div>
     <p class="hint">
       {{ loading ? 'loading the front line…' : hint }}
     </p>
@@ -469,6 +475,20 @@ defineExpose({ frontline, goTo })
   border-radius: 6px;
   white-space: nowrap;
   z-index: 3;
+}
+.loading {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 999px;
+  z-index: 3;
+  pointer-events: none;
 }
 .hint {
   margin-top: 8px;
