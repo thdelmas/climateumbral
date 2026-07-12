@@ -42,7 +42,9 @@ export function colorFor(v) {
   return hsl(125, 48 * (1 - t), 46 - t * 14) // green -> dark gray
 }
 
-export const CLAIMED_COLOR = [125, 200, 110] // brighter than any natural green
+export const FLIPPED_COLOR = [125, 200, 110] // brighter than natural green
+export const PLEDGED_COLOR = [235, 179, 66] // amber: promised, not yet done
+export const WATCHED_COLOR = [150, 118, 220] // violet: petition forming
 export const CANDIDATE_COLOR = [255, 122, 26]
 
 function hsl(h, s, l) {

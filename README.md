@@ -36,8 +36,24 @@ self-report alone.
 
 ## Status
 
-`prototype/index.html` — a self-contained page (no build, no backend, open it)
-with:
+**V1.5 — the game runs.** `make dev` starts the stack (Docker: Vite/Vue
+frontend on :5173, Go API on :8080). On the real Barcelona map you can:
+
+- **pledge** a candidate pixel (hard-sealed touching green) — 90 days to
+  flip it or it returns to the pool, and every live claim counts as
+  green, opening its neighbours (the cascade)
+- **flip** it with an optional photo URL as proof
+- **watch** any sealed pixel you can't flip yourself — coalitions for
+  public land
+- share a **permalink** to any pixel (`#x,y`); see the **ledger** with
+  flipped and pledged m² in separate columns, always
+
+No accounts: a pseudonym plus a per-act bearer token (kept by your
+browser) that lets you flip or erase your own acts — the ledger stores
+nothing else.
+
+`prototype/index.html` — the original self-contained page (no build, no
+backend, open it) with:
 
 - Earth in 1,000 tiles (why the global framing fails, as the setup)
 - A dense-city km² with clickable depaving

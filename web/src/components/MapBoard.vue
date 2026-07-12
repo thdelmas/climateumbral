@@ -2,7 +2,9 @@
 import { onMounted, ref, watch } from 'vue'
 import {
   colorFor,
-  CLAIMED_COLOR,
+  FLIPPED_COLOR,
+  PLEDGED_COLOR,
+  WATCHED_COLOR,
   CANDIDATE_COLOR,
   SEA,
   NODATA,
@@ -11,24 +13,29 @@ import {
 const props = defineProps({
   grid: Uint8Array,
   meta: Object,
-  claimed: Set,
+  pledged: Set,
+  flipped: Set,
+  watched: Set,
   candidates: Set,
-  version: Number, // bumped by the parent after each claim to trigger a redraw
+  selected: Object, // {x, y, i} or null
+  version: Number, // bumped by the parent to trigger a redraw
 })
-const emit = defineEmits(['claim'])
+const emit = defineEmits(['select'])
 
 const canvas = ref(null)
 const readout = ref('hover the map — every pixel is a real 10 × 10 m')
 
 function draw() {
-  const { grid, meta, claimed, candidates } = props
+  const { grid, meta, pledged, flipped, watched, candidates } = props
   if (!canvas.value || !grid) return
   const ctx = canvas.value.getContext('2d')
   const im = ctx.createImageData(meta.width, meta.height)
   for (let i = 0; i < grid.length; i++) {
     let c
-    if (claimed.has(i)) c = CLAIMED_COLOR
+    if (flipped.has(i)) c = FLIPPED_COLOR
+    else if (pledged.has(i)) c = PLEDGED_COLOR
     else if (candidates.has(i)) c = CANDIDATE_COLOR
+    else if (watched.has(i)) c = WATCHED_COLOR
     else c = colorFor(grid[i])
     im.data[i * 4] = c[0]
     im.data[i * 4 + 1] = c[1]
@@ -36,6 +43,14 @@ function draw() {
     im.data[i * 4 + 3] = 255
   }
   ctx.putImageData(im, 0, 0)
+  if (props.selected) {
+    const { x, y } = props.selected
+    ctx.strokeStyle = '#ffffff'
+    ctx.lineWidth = 1
+    ctx.strokeRect(x - 2.5, y - 2.5, 5, 5)
+    ctx.strokeStyle = '#111111'
+    ctx.strokeRect(x - 3.5, y - 3.5, 7, 7)
+  }
 }
 
 function pixelAt(e) {
@@ -51,29 +66,25 @@ function onMove(e) {
   const p = pixelAt(e)
   if (!p) return
   const v = props.grid[p.i]
-  const { width, height, bbox_4326: bb } = props.meta
-  const lon = (bb[0] + (p.x / width) * (bb[2] - bb[0])).toFixed(4)
-  const lat = (bb[3] - (p.y / height) * (bb[3] - bb[1])).toFixed(4)
-  if (props.claimed.has(p.i)) {
-    readout.value = `claimed — 100 m² pledged at ≈ ${lat}, ${lon}`
-  } else if (props.candidates.has(p.i)) {
-    readout.value = `candidate — click to claim 100 m² (≈ ${lat}, ${lon})`
-  } else if (v === SEA) {
-    readout.value = 'the sea'
-  } else if (v === NODATA) {
-    readout.value = 'no data'
-  } else {
-    readout.value = `${v}% sealed — 10 × 10 m at ≈ ${lat}, ${lon}`
-  }
+  if (props.flipped.has(p.i)) readout.value = 'flipped — soil again'
+  else if (props.pledged.has(p.i)) readout.value = 'pledged — click for details'
+  else if (props.candidates.has(p.i)) {
+    readout.value = 'candidate — click to pledge or watch these 100 m²'
+  } else if (props.watched.has(p.i)) {
+    readout.value = 'watched — a coalition is forming, click to join'
+  } else if (v === SEA) readout.value = 'the sea'
+  else if (v === NODATA) readout.value = 'no data'
+  else readout.value = `${v}% sealed — click for details`
 }
 
 function onClick(e) {
   const p = pixelAt(e)
-  if (p && props.candidates.has(p.i)) emit('claim', p)
+  if (p) emit('select', p)
 }
 
 onMounted(draw)
 watch(() => props.version, draw)
+watch(() => props.selected, draw)
 </script>
 
 <template>
