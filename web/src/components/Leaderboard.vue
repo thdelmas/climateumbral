@@ -3,9 +3,12 @@ defineProps({ rows: Array })
 </script>
 
 <template>
-  <div v-if="rows.length" class="lb">
+  <div class="lb">
     <h2>Ledger</h2>
-    <table>
+    <p v-if="!rows.length" class="note">
+      No acts on the ledger yet — the first flipped m² makes history.
+    </p>
+    <table v-if="rows.length">
       <thead>
         <tr>
           <th>who</th>
@@ -21,7 +24,7 @@ defineProps({ rows: Array })
         </tr>
       </tbody>
     </table>
-    <p class="note">
+    <p v-if="rows.length" class="note">
       Flipped and pledged never mix — flips are photo-backed claims;
       the satellite audit comes per epoch.
     </p>

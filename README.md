@@ -58,7 +58,7 @@ backend, open it) with:
 - Earth in 1,000 tiles (why the global framing fails, as the setup)
 - A dense-city km² with clickable depaving
 - **A real map of central Barcelona**: 454×454 Copernicus 10 m pixels,
-  hoverable, with the gray-touching-green candidate detector (344 pixels = 3.4
+  hoverable, with the gray-touching-green candidate detector (227 pixels = 2.3
   ha found)
 
 `tools/fetch_grid.py` — fetch the sealed-% grid + sea mask for any EU bounding

@@ -185,12 +185,24 @@ onMounted(async () => {
     <header>
       <h1>Tilewhip</h1>
       <p class="sub">
-        Central Barcelona, one real 10 × 10 m pixel at a time. Orange
-        squares are hard-sealed pixels touching green: pledge one, flip
-        it within 90 days, and watch the front line open around it.
-        Violet pixels have watchers — coalitions forming on land no one
-        can flip alone.
+        This is central Barcelona as the satellite sees it — every
+        square a real 10 × 10 m of ground. Gray is sealed. Green is
+        alive. The game: turn gray into green, square by square.
       </p>
+      <ol class="steps">
+        <li>
+          Hit <b>“take me to the front line”</b> — it zooms to an
+          <b>orange</b> square: sealed ground touching life.
+        </li>
+        <li>
+          <b>Pledge</b> it — a public promise to depave those 100 m²
+          within 90 days.
+        </li>
+        <li>Depave for real, then <b>mark it flipped</b> (photo link
+          welcome).</li>
+        <li>Can't flip it yourself (a road, a schoolyard)?
+          <b>Watch</b> it — watchers form the coalition.</li>
+      </ol>
       <label class="who">
         I am
         <input v-model="name" placeholder="pseudonym (optional)" size="18" />
@@ -226,6 +238,15 @@ onMounted(async () => {
         :version="version"
         @select="select"
       />
+      <div class="legend">
+        <span><i style="background: rgb(255, 122, 26)" /> candidate —
+          claim me</span>
+        <span><i style="background: rgb(235, 179, 66)" /> pledged</span>
+        <span><i style="background: rgb(125, 200, 110)" /> flipped</span>
+        <span><i style="background: rgb(150, 118, 220)" /> watched</span>
+        <span><i style="background: rgb(61, 61, 68)" /> sealed</span>
+        <span><i style="background: rgb(46, 107, 62)" /> green</span>
+      </div>
       <PixelPanel
         v-if="selected"
         :pixel="selected"
@@ -273,6 +294,38 @@ header h1 {
 .sub {
   color: var(--ink-2);
   max-width: 60ch;
+}
+.steps {
+  margin: 14px 0 0 0;
+  padding-left: 22px;
+  font-size: 14px;
+  color: var(--ink-2);
+  max-width: 60ch;
+}
+.steps li + li {
+  margin-top: 4px;
+}
+.steps b {
+  color: var(--ink);
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.legend i {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  display: inline-block;
 }
 .who {
   display: inline-flex;

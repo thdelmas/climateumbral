@@ -87,9 +87,12 @@ async function copyLink() {
       {{ watches.map((w) => w.name || 'anonymous').join(', ') }}
     </div>
 
+    <div v-if="isCandidate && !claim" class="row muted">
+      This square is on the front line: sealed, but touching life.
+    </div>
     <div class="row actions">
       <button v-if="isCandidate && !claim" @click="emit('pledge')">
-        pledge to flip (90 days)
+        pledge to flip it — 90 days
       </button>
       <template v-if="claim?.status === 'pledged' && myClaimToken">
         <input
