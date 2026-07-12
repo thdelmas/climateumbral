@@ -5,7 +5,8 @@ defineProps({
   myFlippedM2: Number,
   myPledgedM2: Number,
   myNightMC: Number, // my modeled night cooling, milli-degC
-  myWatchCount: Number,
+  myJoins: Number,
+  myBlockMC: Number, // avg block delta since my signatures
   opened: Number,
   myRank: Number,
   flippedM2: Number,
@@ -37,8 +38,13 @@ const emit = defineEmits(['mission'])
       <span>
         <strong>{{ myPledgedM2.toLocaleString() }}</strong> m² pledged
       </span>
-      <span v-if="myWatchCount">
-        <strong>{{ myWatchCount }}</strong> watching
+      <span v-if="myJoins">
+        <strong>{{ myJoins }}</strong>
+        {{ myJoins === 1 ? 'block' : 'blocks' }} petitioned
+        <template v-if="myBlockMC">
+          · <strong>−{{ myBlockMC.toFixed(1) }}</strong> m°C avg since
+          you signed
+        </template>
       </span>
       <span v-if="opened">
         <strong>{{ opened }}</strong> candidates opened by your claims

@@ -10,7 +10,7 @@ defineProps({ mode: String })
       claim me</span>
     <span><i style="background: rgb(235, 179, 66)" /> pledged</span>
     <span><i style="background: rgb(125, 200, 110)" /> flipped</span>
-    <span><i style="background: rgb(150, 118, 220)" /> watched</span>
+    <span><i class="block-chip" /> petitioned block</span>
     <span><i style="background: rgb(61, 61, 68)" /> sealed</span>
     <span><i style="background: rgb(46, 107, 62)" /> green</span>
     <span><i style="background: rgb(72, 118, 160)" /> water</span>
@@ -47,6 +47,10 @@ defineProps({ mode: String })
   height: 11px;
   border-radius: 3px;
   display: inline-block;
+}
+.legend i.block-chip {
+  background: transparent;
+  border: 2px dashed rgb(150, 118, 220);
 }
 .legend i.mine-chip {
   background: transparent;

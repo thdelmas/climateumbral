@@ -12,27 +12,35 @@ defineProps({ rows: Array })
       <thead>
         <tr>
           <th>who</th>
-          <th>night cooling</th>
+          <th>blocks Δ</th>
+          <th>own acts</th>
           <th>done</th>
-          <th>pledged</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="r in rows" :key="r.name">
           <td>{{ r.name }}</td>
           <td class="num cool">
+            <template v-if="r.blocks">
+              −{{ r.block_mdegc.toFixed(1) }} m°C
+              ({{ r.blocks }})
+            </template>
+            <template v-else>—</template>
+          </td>
+          <td class="num cool">
             −{{ r.night_mdegc.toFixed(1) }} m°C
           </td>
           <td class="num">{{ r.flipped_m2.toLocaleString() }} m²</td>
-          <td class="num">{{ r.pledged_m2.toLocaleString() }} m²</td>
         </tr>
       </tbody>
     </table>
     <p v-if="rows.length" class="note">
-      Night cooling is modeled block-average °C, in thousandths (m°C)
-      — small numbers are honest numbers; ~250 acts cool a block's
-      nights by 1 °C. Done and pledged never mix; the satellite audit
-      comes per epoch.
+      Blocks Δ = average modeled night cooling of the blocks you
+      petitioned, counted from the day you signed — everyone's acts
+      move it. Own acts = cooling from deeds you did yourself. m°C =
+      thousandths of a °C; small numbers are honest numbers (~250
+      acts cool a block's nights by 1 °C). The satellite audit comes
+      per epoch.
     </p>
   </div>
 </template>

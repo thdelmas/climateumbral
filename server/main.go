@@ -119,9 +119,9 @@ type claimView struct {
 	Photo    string     `json:"photo,omitempty"`
 }
 
-type watchView struct {
-	Pe   int       `json:"pe"`
-	Pn   int       `json:"pn"`
+type joinView struct {
+	Be   int       `json:"be"`
+	Bn   int       `json:"bn"`
 	Name string    `json:"name,omitempty"`
 	TS   time.Time `json:"ts"`
 }
@@ -221,14 +221,14 @@ func (s *server) handleGetLedger(w http.ResponseWriter, _ *http.Request) {
 			cooling += nightCooling(&s.ledger.Claims[i])
 		}
 	}
-	watches := make([]watchView, 0, len(s.ledger.Watches))
-	for _, wa := range s.ledger.Watches {
-		watches = append(watches,
-			watchView{Pe: wa.Pe, Pn: wa.Pn, Name: wa.Name, TS: wa.TS})
+	joins := make([]joinView, 0, len(s.ledger.Joins))
+	for _, j := range s.ledger.Joins {
+		joins = append(joins,
+			joinView{Be: j.Be, Bn: j.Bn, Name: j.Name, TS: j.TS})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"claims":      claims,
-		"watches":     watches,
+		"joins":       joins,
 		"pledged_m2":  pledged,
 		"flipped_m2":  flipped,
 		"night_mdegc": cooling,
@@ -348,10 +348,13 @@ func (s *server) handleAbandon(w http.ResponseWriter, r *http.Request) {
 	writeErr(w, http.StatusForbidden, "wrong or missing token")
 }
 
-func (s *server) handleWatch(w http.ResponseWriter, r *http.Request) {
+// handleJoin signs the standing petition for a 150 m block. Joining
+// is non-exclusive and has no deadline: it is a signature, not a
+// promise of labor.
+func (s *server) handleJoin(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Pe   int    `json:"pe"`
-		Pn   int    `json:"pn"`
+		Be   int    `json:"be"`
+		Bn   int    `json:"bn"`
 		Name string `json:"name"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -363,55 +366,40 @@ func (s *server) handleWatch(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "name too long")
 		return
 	}
-	now := time.Now().UTC()
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if !inEurope(req.Pe, req.Pn) {
+	if !inEurope(req.Be*blockPx, req.Bn*blockPx) {
 		writeErr(w, http.StatusConflict, "outside the European grid")
 		return
 	}
-	nb, err := s.eea.neighborhood(req.Pe, req.Pn)
-	if err != nil {
-		writeErr(w, http.StatusBadGateway,
-			"upstream data unavailable: "+err.Error())
-		return
-	}
-	if v := nb[4]; v < hardSealed || v > 100 {
-		writeErr(w, http.StatusConflict,
-			"only sealed pixels need watching")
-		return
-	}
-	if c := s.ledger.activeAt(req.Pe, req.Pn, now); c != nil &&
-		c.status(now) == statusFlipped {
-		writeErr(w, http.StatusConflict, "already flipped")
-		return
-	}
-	wa := watch{Pe: req.Pe, Pn: req.Pn, Name: name, TS: now,
+	now := time.Now().UTC()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	j := join{Be: req.Be, Bn: req.Bn, Name: name, TS: now,
 		Token: newToken()}
-	s.ledger.Watches = append(s.ledger.Watches, wa)
+	s.ledger.Joins = append(s.ledger.Joins, j)
 	s.persist()
 	writeJSON(w, http.StatusCreated, map[string]any{
-		"watch": watchView{Pe: wa.Pe, Pn: wa.Pn, Name: wa.Name,
-			TS: wa.TS},
-		"token": wa.Token,
+		"join":  joinView{Be: j.Be, Bn: j.Bn, Name: j.Name, TS: j.TS},
+		"token": j.Token,
 	})
 }
 
-func (s *server) handleUnwatch(w http.ResponseWriter, r *http.Request) {
-	pe, pn, err := pathPePn(r)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, err.Error())
+// handleLeave erases a signature — GDPR erasure included.
+func (s *server) handleLeave(w http.ResponseWriter, r *http.Request) {
+	be, errB := strconv.Atoi(r.PathValue("be"))
+	bn, errN := strconv.Atoi(r.PathValue("bn"))
+	if errB != nil || errN != nil {
+		writeErr(w, http.StatusBadRequest, "bad block coordinates")
 		return
 	}
 	token := r.Header.Get(tokenHeader)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for i := range s.ledger.Watches {
-		wa := &s.ledger.Watches[i]
-		if wa.Pe == pe && wa.Pn == pn && token != "" &&
-			wa.Token == token {
-			s.ledger.Watches = append(
-				s.ledger.Watches[:i], s.ledger.Watches[i+1:]...)
+	for i := range s.ledger.Joins {
+		j := &s.ledger.Joins[i]
+		if j.Be == be && j.Bn == bn && token != "" &&
+			j.Token == token {
+			s.ledger.Joins = append(
+				s.ledger.Joins[:i], s.ledger.Joins[i+1:]...)
 			s.persist()
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -465,8 +453,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("europe is the board: %d claims / %d watches",
-		len(s.ledger.Claims), len(s.ledger.Watches))
+	log.Printf("europe is the board: %d acts / %d signatures",
+		len(s.ledger.Claims), len(s.ledger.Joins))
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/raster", s.handleRaster)
@@ -475,9 +463,8 @@ func main() {
 	mux.HandleFunc("POST /api/claims", s.limit(s.handlePledge))
 	mux.HandleFunc("POST /api/claims/{pe}/{pn}/flip", s.limit(s.handleFlip))
 	mux.HandleFunc("DELETE /api/claims/{pe}/{pn}", s.limit(s.handleAbandon))
-	mux.HandleFunc("POST /api/watches", s.limit(s.handleWatch))
-	mux.HandleFunc("DELETE /api/watches/{pe}/{pn}",
-		s.limit(s.handleUnwatch))
+	mux.HandleFunc("POST /api/joins", s.limit(s.handleJoin))
+	mux.HandleFunc("DELETE /api/joins/{be}/{bn}", s.limit(s.handleLeave))
 	mux.HandleFunc("GET /api/events", s.handleEvents)
 	mux.HandleFunc("GET /api/leaderboard", s.handleLeaderboard)
 	health := func(w http.ResponseWriter, _ *http.Request) {

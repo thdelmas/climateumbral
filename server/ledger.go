@@ -15,8 +15,8 @@ const claimM2 = 100 // one 10 m pixel
 
 // A claim is a pledge to depave one pixel. It either gets flipped
 // (photo proof) before its deadline or expires and the pixel returns
-// to the pool. A watch is a co-signature on a pixel the watcher can't
-// flip themselves — public land, someone else's pledge.
+// to the pool. A join is a standing signature on a block — the
+// petition local governance can see.
 //
 // GDPR discipline (design caveat): the ledger stores only what the
 // public board shows — pixel, pseudonym, timestamps — plus a bearer
@@ -35,17 +35,42 @@ type claim struct {
 	Token    string     `json:"token,omitempty"` // never in GET output
 }
 
-type watch struct {
-	Pe    int       `json:"pe"`
-	Pn    int       `json:"pn"`
+// A join is a standing signature on a 150 m block — the petition a
+// local government can see: who stands behind cooling this place,
+// and how the block's modeled delta moved since they signed.
+type join struct {
+	Be    int       `json:"be"` // block easting index (pe / 15)
+	Bn    int       `json:"bn"`
 	Name  string    `json:"name,omitempty"`
 	TS    time.Time `json:"ts"`
 	Token string    `json:"token,omitempty"` // never in GET output
 }
 
 type ledger struct {
-	Claims  []claim `json:"claims"`
-	Watches []watch `json:"watches"`
+	Claims []claim `json:"claims"`
+	Joins  []join  `json:"joins"`
+}
+
+const blockPx = 15 // 150 m blocks: the night-window scale
+
+func blockOf(pe, pn int) (int, int) {
+	return pe / blockPx, pn / blockPx
+}
+
+// blockCooling: modeled night cooling delivered inside a block by
+// acts done since t.
+func (l *ledger) blockCooling(be, bn int, since time.Time) float64 {
+	sum := 0.0
+	for i := range l.Claims {
+		c := &l.Claims[i]
+		if c.Flipped == nil || c.Flipped.Before(since) {
+			continue
+		}
+		if cbe, cbn := blockOf(c.Pe, c.Pn); cbe == be && cbn == bn {
+			sum += nightCooling(c)
+		}
+	}
+	return sum
 }
 
 const (
@@ -136,21 +161,13 @@ func (l *ledger) greenSet(now time.Time) map[[2]int]bool {
 	return set
 }
 
-func (l *ledger) watchesAt(pe, pn int) []watch {
-	var out []watch
-	for _, w := range l.Watches {
-		if w.Pe == pe && w.Pn == pn {
-			out = append(out, w)
-		}
-	}
-	return out
-}
-
 type rank struct {
 	Name      string  `json:"name"`
 	PledgedM2 int     `json:"pledged_m2"`
 	FlippedM2 int     `json:"flipped_m2"`
-	NightMC   float64 `json:"night_mdegc"` // modeled, milli-degC
+	NightMC   float64 `json:"night_mdegc"` // own done acts
+	BlockMC   float64 `json:"block_mdegc"` // avg block delta since join
+	Blocks    int     `json:"blocks"`      // blocks petitioned
 }
 
 // nightCooling scores one done act in modeled milli-degrees of
@@ -193,11 +210,37 @@ func (l *ledger) leaderboard(now time.Time, top int) []rank {
 			r.PledgedM2 += claimM2
 		}
 	}
+	// communal column: for each signatory, the average modeled night
+	// cooling of their blocks since they signed — the outcome score
+	byJoiner := map[string][]join{}
+	for _, j := range l.Joins {
+		n := j.Name
+		if n == "" {
+			n = "anonymous"
+		}
+		byJoiner[n] = append(byJoiner[n], j)
+	}
+	for n, joins := range byJoiner {
+		r := byName[n]
+		if r == nil {
+			r = &rank{Name: n}
+			byName[n] = r
+		}
+		sum := 0.0
+		for _, j := range joins {
+			sum += l.blockCooling(j.Be, j.Bn, j.TS)
+		}
+		r.BlockMC = sum / float64(len(joins))
+		r.Blocks = len(joins)
+	}
 	out := make([]rank, 0, len(byName))
 	for _, r := range byName {
 		out = append(out, *r)
 	}
 	sort.Slice(out, func(a, b int) bool {
+		if out[a].BlockMC != out[b].BlockMC {
+			return out[a].BlockMC > out[b].BlockMC
+		}
 		if out[a].NightMC != out[b].NightMC {
 			return out[a].NightMC > out[b].NightMC
 		}

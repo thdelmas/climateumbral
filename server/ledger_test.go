@@ -148,11 +148,44 @@ func TestLoadLegacyFormat(t *testing.T) {
 	}
 }
 
+func TestBlockCooling(t *testing.T) {
+	flipTS := t0.Add(time.Hour)
+	inside := pledge(16, 16, "a", t0) // block (1,1)
+	inside.V = 95
+	inside.Flipped = &flipTS
+	outside := pledge(50, 50, "a", t0) // block (3,3)
+	outside.V = 95
+	outside.Flipped = &flipTS
+	l := &ledger{Claims: []claim{inside, outside}}
+	got := l.blockCooling(1, 1, t0)
+	if got < 3.9 || got > 4.0 {
+		t.Fatalf("block (1,1) cooling: got %.3f, want ~3.95", got)
+	}
+	if l.blockCooling(1, 1, t0.Add(2*time.Hour)) != 0 {
+		t.Fatal("acts before the signature don't count")
+	}
+}
+
+func TestLeaderboardBlockColumn(t *testing.T) {
+	flipTS := t0.Add(2 * time.Hour)
+	act := pledge(16, 16, "worker", t0)
+	act.V = 95
+	act.Flipped = &flipTS
+	l := &ledger{
+		Claims: []claim{act},
+		Joins:  []join{{Be: 1, Bn: 1, Name: "signer", TS: t0}},
+	}
+	ranks := l.leaderboard(t0.Add(3*time.Hour), 20)
+	if ranks[0].Name != "signer" || ranks[0].BlockMC < 3.9 {
+		t.Fatalf("signer should lead on block delta: %+v", ranks)
+	}
+}
+
 func TestPersistRoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "claims.json")
 	l := &ledger{
-		Claims:  []claim{pledge(1, 1, "mia", t0)},
-		Watches: []watch{{Pe: 2, Pn: 2, Name: "ana", TS: t0, Token: "t"}},
+		Claims: []claim{pledge(1, 1, "mia", t0)},
+		Joins:  []join{{Be: 2, Bn: 2, Name: "ana", TS: t0, Token: "t"}},
 	}
 	if err := l.persist(path); err != nil {
 		t.Fatal(err)
@@ -161,7 +194,7 @@ func TestPersistRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Claims) != 1 || len(got.Watches) != 1 {
+	if len(got.Claims) != 1 || len(got.Joins) != 1 {
 		t.Fatalf("round trip lost records: %+v", got)
 	}
 	if got.Claims[0].Token != l.Claims[0].Token {

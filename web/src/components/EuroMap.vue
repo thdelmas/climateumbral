@@ -9,9 +9,9 @@ import {
   inEurope,
 } from '../lib/proj.js'
 import { ledgerGeojson, selectionGeojson } from '../lib/ledgergeo.js'
+import { blocksGeojson } from '../lib/blocks.js'
 import { fetchAnchors, pickByExposure } from '../lib/anchors.js'
-import { viewport3035, rasterContains, MAX_DIM }
-  from '../lib/viewport.js'
+import { viewport3035, rasterContains, MAX_DIM } from '../lib/viewport.js'
 import { tipTextAt } from '../lib/tiptext.js'
 import {
   computeCandidates,
@@ -27,13 +27,13 @@ import {
 
 const props = defineProps({
   claims: Array, // active claimViews
-  watches: Array, // watchViews
+  joins: Array, // joinViews — the standing petitions
   mineKeys: Set, // "pe,pn" keys whose tokens this browser holds
   selected: Object, // {pe, pn} or null
   mode: String, // 'land' | 'day' | 'night'
   version: Number, // ledger refresh counter
 })
-const emit = defineEmits(['select', 'mode', 'raster'])
+const emit = defineEmits(['select', 'raster'])
 
 const PLAY_ZOOM = 13.2
 const EEA_PNG =
@@ -65,20 +65,16 @@ const localIdx = (pe, pn) => {
 
 function updateHint() {
   const heat = props.mode !== 'land'
-  if (!raster) {
-    hint.value = heat
-      ? 'modeled °C appears at street level — zoom into a city or ' +
-        'hit "find me a square"'
-      : 'zoom into a city to load the front line'
-  } else {
-    hint.value = heat
+  hint.value = raster
+    ? (heat
       ? 'hover for modeled °C — click a square for details'
-      : 'click a square — orange is the front line · drag to pan'
-  }
+      : 'click a square — orange is the front line · drag to pan')
+    : (heat
+      ? 'modeled °C appears at street level — zoom into a city'
+      : 'zoom into a city to load the front line')
 }
 
-// Heat modes lean the continental sealed layer warmer and denser —
-// the toggle answers even before street-level data loads.
+// Heat modes lean the sealed layer warmer at continental zoom.
 function basemapMood() {
   if (!map?.getLayer('imd')) return
   const heat = props.mode !== 'land'
@@ -200,8 +196,7 @@ function paintOverlay() {
     }
   }
   if (!heat) {
-    // halo: tint the candidates' neighbours so the front line pops
-    // at any zoom (display only — the candidate is the center pixel)
+    // halo: tint candidate neighbours so the front line pops
     for (const i of cands) {
       const x = i % W
       const y = Math.floor(i / W)
@@ -238,8 +233,7 @@ function paintOverlay() {
   setOverlayVisible(true)
 }
 
-// A pre-load paint can't insert before claims-fill (not added yet);
-// anchor on whatever exists — the load handler restores order.
+// Pre-load paints anchor on whatever layer exists (see 'load').
 function ensureGameLayer() {
   if (map.getLayer('game')) return
   const before = map.getLayer('claims-fill') ? 'claims-fill' : undefined
@@ -266,7 +260,8 @@ function setOverlayVisible(on) {
 
 function syncLedger() {
   map.getSource('claims')?.setData(
-    ledgerGeojson(props.claims, props.watches, props.mineKeys))
+    ledgerGeojson(props.claims, props.mineKeys))
+  map.getSource('blocks')?.setData(blocksGeojson(props.joins))
   map.getSource('selection')?.setData(selectionGeojson(props.selected))
 }
 
@@ -277,8 +272,7 @@ async function frontline() {
     pickAndGo()
     return
   }
-  // search a full-size raster around the current center before ever
-  // teleporting the player anywhere
+  // search around the current center before teleporting anywhere
   const c = map.getCenter()
   const [E, N] = toLAEA(c.lng, c.lat)
   if (inEurope(Math.floor(E / 10), Math.floor(N / 10))) {
@@ -351,7 +345,21 @@ onMounted(() => {
   map.on('load', () => {
     map.addSource('claims', {
       type: 'geojson',
-      data: ledgerGeojson(props.claims, props.watches, props.mineKeys),
+      data: ledgerGeojson(props.claims, props.mineKeys),
+    })
+    map.addSource('blocks', {
+      type: 'geojson',
+      data: blocksGeojson(props.joins),
+    })
+    map.addLayer({
+      id: 'blocks',
+      type: 'line',
+      source: 'blocks',
+      paint: {
+        'line-color': 'rgb(150,118,220)',
+        'line-width': 2,
+        'line-dasharray': [2, 1],
+      },
     })
     map.addSource('selection', {
       type: 'geojson',
@@ -365,8 +373,7 @@ onMounted(() => {
         'fill-color': [
           'match', ['get', 'kind'],
           'flipped', 'rgb(125,200,110)',
-          'pledged', 'rgb(235,179,66)',
-          'rgb(150,118,220)', // watched
+          'rgb(235,179,66)', // pledged
         ],
         'fill-opacity': 0.9,
       },

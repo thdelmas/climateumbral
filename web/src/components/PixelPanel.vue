@@ -6,10 +6,11 @@ const props = defineProps({
   pixel: Object, // {pe, pn} — continent pixel
   value: Number, // sealed-% at the pixel; null if outside the raster
   claim: Object, // claimView or null
-  watches: Array, // watchViews on this pixel
+  blockJoins: Array, // signatures on this square's 150 m block
+  blockDelta: Number, // modeled block cooling since first signature
+  joined: Boolean, // this browser holds a signature here
   isCandidate: Boolean,
   myClaimToken: String,
-  myWatchToken: String,
   dayDelta: Number, // modeled °C above unsealed, null off land
   nightDelta: Number,
   flipsPerDeg: Number, // flips like this one per modeled night degree
@@ -19,8 +20,8 @@ const emit = defineEmits([
   'pledge',
   'flip',
   'abandon',
-  'watch',
-  'unwatch',
+  'join',
+  'leave',
 ])
 
 const photo = ref('')
@@ -104,9 +105,11 @@ async function copyLink() {
       </template>
     </div>
 
-    <div v-if="watches.length" class="row muted">
-      {{ watches.length }} watching:
-      {{ watches.map((w) => w.name || 'anonymous').join(', ') }}
+    <div v-if="blockJoins.length" class="row muted">
+      this block's petition: <b>{{ blockJoins.length }}</b>
+      {{ blockJoins.length === 1 ? 'signature' : 'signatures' }}
+      ({{ blockJoins.map((j) => j.name || 'anonymous').join(', ') }})
+      — <b>−{{ blockDelta.toFixed(1) }} m°C</b> night since it began
     </div>
 
     <div v-if="isCandidate && !claim" class="row muted">
@@ -118,8 +121,10 @@ async function copyLink() {
       surface reflects it, anywhere sealed.
     </div>
     <div v-if="sealed && !claim" class="row muted">
-      Pledge only ground you may legally change; a road or schoolyard
-      is a watch, not a pledge.
+      Pledge only ground you may legally change. Can't act here
+      yourself? Join the block — a standing petition local governance
+      can see, scored by how the block's nights cool from the day you
+      sign.
     </div>
     <div class="row actions">
       <template v-if="sealed && !claim">
@@ -144,14 +149,11 @@ async function copyLink() {
           abandon &amp; erase
         </button>
       </template>
-      <button
-        v-if="sealed && claim?.status !== 'flipped' && !myWatchToken"
-        @click="emit('watch')"
-      >
-        watch this pixel
+      <button v-if="!joined" @click="emit('join')">
+        join this block — sign the petition
       </button>
-      <button v-if="myWatchToken" class="quiet" @click="emit('unwatch')">
-        stop watching
+      <button v-if="joined" class="quiet" @click="emit('leave')">
+        withdraw my signature
       </button>
     </div>
   </div>

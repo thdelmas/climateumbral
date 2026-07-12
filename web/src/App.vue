@@ -10,6 +10,7 @@ import { meanPenalty, flipsPerDegree, DAY_COEF, NIGHT_COEF }
   from './lib/heat.js'
 import { inEurope } from './lib/proj.js'
 import { nearestAnchor } from './lib/anchors.js'
+import { blockOf, blockKey, blockCoolingSince } from './lib/blocks.js'
 import {
   myName,
   setMyName,
@@ -22,9 +23,8 @@ import {
 } from './lib/local.js'
 
 const claims = shallowRef([]) // active claimViews
-const watches = shallowRef([])
+const joins = shallowRef([]) // joinViews — standing petitions
 const claimAt = shallowRef(new Map()) // "pe,pn" -> claimView
-const watchesAt = shallowRef(new Map()) // "pe,pn" -> watchViews
 const leaders = ref([])
 const version = ref(0)
 const selected = ref(null) // {pe, pn} or null
@@ -49,8 +49,7 @@ watch(name, (n) => setMyName(n.trim()))
 
 const key = (pe, pn) => `${pe},${pn}`
 const selKey = computed(() =>
-  selected.value ? key(selected.value.pe, selected.value.pn) : null,
-)
+  selected.value ? key(selected.value.pe, selected.value.pn) : null)
 
 function setMode(m) {
   mode.value = m
@@ -112,11 +111,26 @@ const myPledges = computed(() =>
 const myFlipped = computed(() =>
   mine.value.filter((c) => c.status === 'flipped'),
 )
-const myWatchCount = computed(() => {
+// ---- my petition blocks ----
+const selBlock = computed(() =>
+  selected.value ? blockOf(selected.value.pe, selected.value.pn) : null)
+const selBlockKey = computed(() =>
+  selBlock.value ? blockKey(...selBlock.value) : null)
+const selBlockJoins = computed(() =>
+  joins.value.filter((j) => blockKey(j.be, j.bn) === selBlockKey.value))
+const myJoins = computed(() => {
   version.value
-  return Object.keys(allTokens('watch')).filter((k) =>
-    watchesAt.value.has(k),
-  ).length
+  const keys = new Set(Object.keys(allTokens('join')))
+  return joins.value.filter((j) => keys.has(blockKey(j.be, j.bn)))
+})
+const myBlockMC = computed(() => {
+  const mineJ = myJoins.value
+  if (!mineJ.length) return 0
+  const sum = mineJ.reduce(
+    (s, j) => s + blockCoolingSince(claims.value, j.be, j.bn, j.ts),
+    0,
+  )
+  return sum / mineJ.length
 })
 const myRank = computed(() => {
   const n = name.value.trim()
@@ -143,8 +157,7 @@ const mission = computed(() => {
     return {
       text:
         'Your first move: find a sealed square — pledge a cooling ' +
-        'act (depave, tree, cool surface) if it is yours, watch it ' +
-        'if not.',
+        'act if it is yours, join the block petition if not.',
       btn: '→ find me a square',
       goto: null,
     }
@@ -189,15 +202,9 @@ async function refresh() {
   const active = ledger.claims.filter((c) => c.status !== 'expired')
   const cm = new Map()
   for (const c of active) cm.set(key(c.pe, c.pn), c)
-  const wm = new Map()
-  for (const w of ledger.watches) {
-    const k = key(w.pe, w.pn)
-    wm.set(k, [...(wm.get(k) ?? []), w])
-  }
   claims.value = active
-  watches.value = ledger.watches
+  joins.value = ledger.joins ?? []
   claimAt.value = cm
-  watchesAt.value = wm
   pledgedM2.value = ledger.pledged_m2
   flippedM2.value = ledger.flipped_m2
   nightMC.value = ledger.night_mdegc ?? 0
@@ -268,25 +275,25 @@ async function abandon() {
   await refresh()
 }
 
-async function watchPixel() {
-  const { pe, pn } = selected.value
-  const res = await post('/api/watches', {
-    pe,
-    pn,
+async function joinBlock() {
+  const [be, bn] = selBlock.value
+  const res = await post('/api/joins', {
+    be,
+    bn,
     name: name.value.trim(),
   })
   if (res.ok) {
     const { token } = await res.json()
-    rememberToken('watch', pe, pn, token)
+    rememberToken('join', be, bn, token)
   }
   await refresh()
 }
 
-async function unwatch() {
-  const { pe, pn } = selected.value
-  const res = await del(`/api/watches/${pe}/${pn}`,
-    tokenFor('watch', pe, pn))
-  if (res.status === 204) forgetToken('watch', pe, pn)
+async function leaveBlock() {
+  const [be, bn] = selBlock.value
+  const res = await del(`/api/joins/${be}/${bn}`,
+    tokenFor('join', be, bn))
+  if (res.status === 204) forgetToken('join', be, bn)
   await refresh()
 }
 
@@ -337,8 +344,8 @@ onMounted(async () => {
         </li>
         <li>
           Not yours to touch (a road, a schoolyard — most squares)?
-          <b>Watch</b> it — watchers form the coalition that gets it
-          flipped.
+          <b>Join the block</b> — a standing petition, scored by how
+          the block's nights cool from the day you sign.
         </li>
         <li>Depaved for real? <b>Mark it flipped</b> (photo link
           welcome).</li>
@@ -351,11 +358,12 @@ onMounted(async () => {
 
     <ScoreBar
       :mission="mission"
-      :has-acts="mine.length > 0 || myWatchCount > 0"
+      :has-acts="mine.length > 0 || myJoins.length > 0"
       :my-flipped-m2="myFlipped.length * 100"
       :my-pledged-m2="myPledges.length * 100"
       :my-night-m-c="myNightMC"
-      :my-watch-count="myWatchCount"
+      :my-joins="myJoins.length"
+      :my-block-m-c="myBlockMC"
       :opened="opened"
       :my-rank="myRank"
       :flipped-m2="flippedM2"
@@ -381,7 +389,7 @@ onMounted(async () => {
     <EuroMap
       ref="board"
       :claims="claims"
-      :watches="watches"
+      :joins="joins"
       :mine-keys="mineKeys"
       :selected="selected"
       :mode="mode"
@@ -396,10 +404,15 @@ onMounted(async () => {
       :pixel="selected"
       :value="selValue"
       :claim="claimAt.get(selKey) ?? null"
-      :watches="watchesAt.get(selKey) ?? []"
+      :block-joins="selBlockJoins"
+      :block-delta="selBlockJoins.length
+        ? blockCoolingSince(claims, selBlock[0], selBlock[1],
+          selBlockJoins[0].ts)
+        : 0"
+      :joined="!!(selBlock && tokenFor('join', ...selBlock))"
       :is-candidate="selIsCandidate"
       :my-claim-token="tokenFor('claim', selected.pe, selected.pn)"
-      :my-watch-token="tokenFor('watch', selected.pe, selected.pn)"
+      :anchor-label="selAnchor"
       :day-delta="selHeat?.day ?? null"
       :night-delta="selHeat?.night ?? null"
       :flips-per-deg="selHeat?.flips ?? 0"
@@ -407,8 +420,8 @@ onMounted(async () => {
       @pledge="pledge"
       @flip="flip"
       @abandon="abandon"
-      @watch="watchPixel"
-      @unwatch="unwatch"
+      @join="joinBlock"
+      @leave="leaveBlock"
     />
     <Leaderboard :rows="leaders" />
 

@@ -161,15 +161,20 @@ Three levels of the same concept, in build order:
    become worth building — and even then the permission ask itself carries an
    optics cost no architecture can remove: users experience the OS dialog, not
    the data flow.
-3. **Watch coalitions** (explicit acts only). People who watch the same pixel
-   are the coalition for it: "3 others watch this square" is matchmaking for a
-   depave, and contested demand is the petition forming itself. Watches are
-   claim-shaped server-side acts — chosen, visible, revocable. Automatic
-   Happn-style path-overlap detection is rejected: computing that two paths
-   cross requires comparing them somewhere, which either breaks rule 7 or
-   demands private-set-intersection cryptography (Google and Apple needed a
-   joint OS framework for exposure notification; a small team does not ship
-   that as a side feature).
+3. **Block petitions** (shipped, replacing watches — explicit acts
+   only). Nobody owns a square. You *join* a 150 m block — a chosen,
+   visible, revocable signature on a standing petition local
+   governance can see: who stands behind cooling this place, and how
+   the block's modeled night delta has moved since each signature.
+   Ranking is outcome-based: your headline score is the average
+   cooling of your blocks since you signed — everyone's acts move it,
+   so recruiting neighbours is the optimal strategy (the coalition
+   engine, with less machinery). An own-acts column guards against
+   free-riding, same discipline as claimed-vs-measured. Automatic
+   Happn-style path-overlap detection stays rejected: computing that
+   two paths cross requires comparing them somewhere, which either
+   breaks rule 7 or demands private-set-intersection cryptography (a
+   small team does not ship that as a side feature).
 
 Valence rule, non-negotiable: **time = stake, never blame.** Dwell-time
 responsibility would punish exactly the people with the least power over their
