@@ -71,9 +71,13 @@ therefore a *downscaled model* (LST calibrated against imperviousness
 and land cover) and must be labeled modeled. Rule 1 applies to degrees
 exactly as it applies to m²: modeled and measured never mix.
 
-Model v0 (shipped, `web/src/lib/heat.js`): penalty = coefficient ×
-mean sealed fraction within 150 m, with day 6 °C and night 4 °C as
-placeholder magnitudes in the range European SUHI literature reports.
+Model v0.1 (shipped, `web/src/lib/heat.js`): penalty = coefficient ×
+mean sealed fraction, with day 6 °C and night 4 °C as placeholder
+magnitudes in the range European SUHI literature reports. Day and
+night differ in *structure*, not just scale: the day window is 50 m
+(surface heat tracks what the sun hits where you stand), the night
+window 150 m (the block's banked thermal mass releasing until dawn) —
+so the two views are genuinely different maps.
 Flipped pixels count as unsealed, so every flip cools its block in the
 model; a candidate's panel states how many flips like it the block
 needs to sleep 1 °C cooler. v1 replaces the coefficients with a

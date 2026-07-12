@@ -59,12 +59,6 @@ const localIdx = (pe, pn) => {
   return row * raster.W + col
 }
 
-function claimByKey() {
-  const m = new Map()
-  for (const c of props.claims) m.set(key(c.pe, c.pn), c)
-  return m
-}
-
 // ---- game raster: fetch viewport values, detect, paint ----
 
 function updateHint() {
@@ -175,8 +169,9 @@ function recompute() {
     if (c.status === 'flipped') flippedLocal.add(i)
   }
   raster.cands = computeCandidates(g, W, H, claimedLocal)
-  const { S, C } = sealedStats(g, W, H, flippedLocal)
-  raster.S = S
+  const { Sday, Snight, C } = sealedStats(g, W, H, flippedLocal)
+  raster.Sday = Sday
+  raster.Snight = Snight
   raster.C = C
   paintOverlay()
   emit('raster', raster)
@@ -188,7 +183,8 @@ function recompute() {
 
 function paintOverlay() {
   if (!raster) return
-  const { g, W, H, cands, S } = raster
+  const { g, W, H, cands } = raster
+  const S = props.mode === 'day' ? raster.Sday : raster.Snight
   if (!overlay) overlay = document.createElement('canvas')
   overlay.width = W
   overlay.height = H
@@ -305,13 +301,15 @@ function goTo(pe, pn) {
 }
 
 function tipTextAt(pe, pn) {
-  const claim = claimByKey().get(key(pe, pn))
+  const k = key(pe, pn)
+  const claim = props.claims.find((c) => key(c.pe, c.pn) === k)
   const i = localIdx(pe, pn)
   const v = i >= 0 ? raster.g[i] : null
-  if (props.mode !== 'land' && i >= 0 && raster.S[i] >= 0) {
+  const S = props.mode === 'day' ? raster.Sday : raster.Snight
+  if (props.mode !== 'land' && i >= 0 && S[i] >= 0) {
     const coef = props.mode === 'day' ? DAY_COEF : NIGHT_COEF
     const tag = raster.cands?.has(i) ? ' · candidate' : ''
-    return `+${(coef * raster.S[i]).toFixed(1)} °C ` +
+    return `+${(coef * S[i]).toFixed(1)} °C ` +
       `${props.mode} (modeled)${tag}`
   }
   if (claim?.status === 'flipped') return 'flipped — soil again'

@@ -20,11 +20,18 @@
 // flip cools its block in the model.
 export const DAY_COEF = 6
 export const NIGHT_COEF = 4
-export const RADIUS_PX = 15 // 150 m at 10 m per pixel
+// Day and night have different spatial structure, not just different
+// magnitude: daytime surface heat tracks what the sun hits where you
+// stand (small window), nighttime heat is the whole block's banked
+// thermal mass releasing until dawn (wide window). This is what makes
+// the two views genuinely different maps.
+export const DAY_RADIUS_PX = 5 // 50 m
+export const NIGHT_RADIUS_PX = 15 // 150 m
 
 // sealedStats computes, per land pixel, the mean sealed fraction of
-// land pixels within RADIUS_PX (box window, integral images) and the
-// count of land pixels in the window. Sea/nodata pixels get S = -1.
+// land pixels within the day and night windows (box means via one
+// integral image), plus the night-window land count (for
+// flips-per-degree). Water/nodata pixels get S = -1.
 export function sealedStats(grid, w, h, flipped) {
   const iw = w + 1
   const sumS = new Float64Array(iw * (h + 1))
@@ -45,25 +52,31 @@ export function sealedStats(grid, w, h, flipped) {
     a[y0 * iw + x1 + 1] -
     a[(y1 + 1) * iw + x0] +
     a[y0 * iw + x0]
-  const S = new Float32Array(w * h)
+  const mean = (x, y, r, out, cnt) => {
+    const x0 = Math.max(0, x - r)
+    const y0 = Math.max(0, y - r)
+    const x1 = Math.min(w - 1, x + r)
+    const y1 = Math.min(h - 1, y + r)
+    const n = rect(sumN, x0, y0, x1, y1)
+    if (cnt) cnt[y * w + x] = n
+    out[y * w + x] = n ? rect(sumS, x0, y0, x1, y1) / n : 0
+  }
+  const Sday = new Float32Array(w * h)
+  const Snight = new Float32Array(w * h)
   const C = new Int32Array(w * h)
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const i = y * w + x
       if (grid[i] > 100) {
-        S[i] = -1
+        Sday[i] = -1
+        Snight[i] = -1
         continue
       }
-      const x0 = Math.max(0, x - RADIUS_PX)
-      const y0 = Math.max(0, y - RADIUS_PX)
-      const x1 = Math.min(w - 1, x + RADIUS_PX)
-      const y1 = Math.min(h - 1, y + RADIUS_PX)
-      const n = rect(sumN, x0, y0, x1, y1)
-      C[i] = n
-      S[i] = n ? rect(sumS, x0, y0, x1, y1) / n : 0
+      mean(x, y, DAY_RADIUS_PX, Sday, null)
+      mean(x, y, NIGHT_RADIUS_PX, Snight, C)
     }
   }
-  return { S, C }
+  return { Sday, Snight, C }
 }
 
 // meanPenalty: average modeled penalty over land pixels, in °C.
