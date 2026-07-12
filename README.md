@@ -43,7 +43,11 @@ imperviousness layer. Zoom into any city and the front line loads —
 live 10 m values streamed (and cached) from the EEA image service, no
 local data at all. Claims are keyed to the continent-wide EPSG:3035
 10 m pixel grid, and the server validates every pledge against the
-same upstream pixels. Day/night modeled heat views work everywhere.
+same upstream pixels. Water (WAW) is merged in so canals and sea are
+water, not "green". Day/night modeled heat views are structurally
+different maps (50 m surface window vs 150 m banked-heat window). The
+ledger streams live (SSE): every open map sees every act. Mutation
+endpoints are rate-limited per IP.
 
 On any city you can:
 
