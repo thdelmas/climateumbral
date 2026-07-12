@@ -67,15 +67,24 @@ Three levels of the same concept, in build order:
    candidate detector by estimated human-hours from open data: population
    density, schools, playgrounds, plazas, transit stops. A sealed schoolyard
    holding 400 kids × 6 h beats an empty logistics lot at any sealed-%. Second
-   axis next to gray-touching- green: ecological leverage × human leverage.
-2. **Personal front line** (native app, on-device only). The phone keeps its own
-   dwell-time histogram, intersects it with locally downloaded grid tiles, and
-   shows *your* streets' candidates and *your* exposure. Nothing leaves the
-   device.
-3. **Crossing coalitions** (opt-in only). People whose stakes overlap on a pixel
+   axis next to gray-touching-green: ecological leverage × human leverage.
+2. **Personal front line** (web first, zero permissions). Users declare their
+   places — draw a commute, drop home/work pins, ten seconds — and the map
+   centers their exposure and their candidates. This tests the familiarity
+   hypothesis with no permission dialog. Only if it works does the native
+   refinement (an on-device dwell-time histogram, nothing leaving the phone)
+   become worth building — and even then the permission ask itself carries an
+   optics cost no architecture can remove: users experience the OS dialog, not
+   the data flow.
+3. **Watch coalitions** (explicit acts only). People who watch the same pixel
    are the coalition for it: "3 others watch this square" is matchmaking for a
-   depave. Contested demand is not a conflict — it is the petition forming
-   itself.
+   depave, and contested demand is the petition forming itself. Watches are
+   claim-shaped server-side acts — chosen, visible, revocable. Automatic
+   Happn-style path-overlap detection is rejected: computing that two paths
+   cross requires comparing them somewhere, which either breaks rule 7 or
+   demands private-set-intersection cryptography (Google and Apple needed a
+   joint OS framework for exposure notification; a small team does not ship
+   that as a side feature).
 
 Valence rule, non-negotiable: **time = stake, never blame.** Dwell-time
 responsibility would punish exactly the people with the least power over their
@@ -88,6 +97,14 @@ Exposure and score stay separate for the same reason claimed and measured do
 (rule 1): if exposure were the score, the optimal move would be sitting in
 parks, and nothing would get depaved. Exposure is the mirror that motivates; the
 ledger is what counts.
+
+Platform note (council-reviewed 2026-07-12): the game stays a webapp until
+flips-per-week proves the core loop. The growth engine — permalinks,
+city-vs-city rivalry — lives on the web; an install wall would trade a working
+viral loop for a speculative one. PWAs get no usable background geolocation on
+either platform, so the only native trigger is proven retention plus users
+asking for a daily companion. If retention never comes, native was never the
+answer.
 
 ## Design rules
 
@@ -118,3 +135,14 @@ ledger is what counts.
   ≥3×3.
 - Epochs are ~3 years apart: T3/T4 scoring is a slow game by design. T1/T2 keeps
   the fast loop.
+- The satellite cannot police the players: 10 m pixels never verify a 1 m²
+  flip, so T1/T2 scores rest on photo proof — which means fraud handling and
+  moderation cost the moment city rivalry makes cheating worth it. Budget for
+  it before the leaderboard ships.
+- Most sealed pixels are land the player cannot legally touch (roads,
+  municipal lots, other people's property). Tegelwippen works on *own
+  gardens*. Candidates need a tenure hint: plausibly-yours (flip it) vs
+  public/institutional (watch it, petition it) — never "go depave the road."
+- The ledger is already location data: a pseudonym's claims cluster around
+  their home. GDPR discipline (minimal fields, right to erasure, no
+  IP-to-claim linkage kept) starts at V1.5, not at the native app.
