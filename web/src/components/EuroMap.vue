@@ -63,11 +63,36 @@ function claimByKey() {
 
 // ---- game raster: fetch viewport values, detect, paint ----
 
+function updateHint() {
+  const heat = props.mode !== 'land'
+  if (!raster) {
+    hint.value = heat
+      ? 'modeled °C appears at street level — zoom into a city or ' +
+        'hit "find me a square"'
+      : 'zoom into a city to load the front line'
+  } else {
+    hint.value = heat
+      ? 'hover for modeled °C — click a square for details'
+      : 'click a square — orange is the front line · drag to pan'
+  }
+}
+
+// In heat modes the continental sealed layer leans warmer and denser:
+// sealed surface is the heat proxy at every scale, and the toggle
+// should visibly answer even before street-level data loads.
+function basemapMood() {
+  if (!map?.getLayer('imd')) return
+  const heat = props.mode !== 'land'
+  map.setPaintProperty('imd', 'raster-opacity', heat ? 0.85 : 0.5)
+  map.setPaintProperty('imd', 'raster-saturation', heat ? 0.5 : 0)
+  map.setPaintProperty('imd', 'raster-contrast', heat ? 0.15 : 0)
+}
+
 async function refreshRaster() {
   if (!map) return
   if (map.getZoom() < PLAY_ZOOM) {
     raster = null
-    hint.value = 'zoom into a city to load the front line'
+    updateHint()
     setOverlayVisible(false)
     emit('raster', null)
     return
@@ -103,8 +128,7 @@ async function refreshRaster() {
     const g = new Uint8Array(await res.arrayBuffer())
     raster = { g, W, H, pe0: be0 / 10, pn0: bn0 / 10 }
     recompute()
-    hint.value =
-      'click a square — orange is the front line · drag to pan'
+    updateHint()
   } catch (err) {
     hint.value = `front line unavailable: ${err.message}`
   } finally {
@@ -366,6 +390,7 @@ onMounted(() => {
       source: 'selection',
       paint: { 'line-color': '#ffffff', 'line-width': 2.5 },
     })
+    basemapMood()
     refreshRaster()
     if (pendingGoTo) {
       goTo(...pendingGoTo)
@@ -396,7 +421,11 @@ watch(() => props.version, () => {
   syncLedger()
   recompute()
 })
-watch(() => props.mode, paintOverlay)
+watch(() => props.mode, () => {
+  basemapMood()
+  paintOverlay()
+  updateHint()
+})
 watch(() => props.selected, () => map?.getSource('selection') &&
   syncLedger())
 
