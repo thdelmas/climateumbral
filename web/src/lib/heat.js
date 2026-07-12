@@ -28,21 +28,37 @@ export const NIGHT_COEF = 4
 export const DAY_RADIUS_PX = 5 // 50 m
 export const NIGHT_RADIUS_PX = 15 // 150 m
 
-// sealedStats computes, per land pixel, the mean sealed fraction of
-// land pixels within the day and night windows (box means via one
-// integral image), plus the night-window land count (for
-// flips-per-degree). Water/nodata pixels get S = -1.
-export function sealedStats(grid, w, h, flipped) {
+// Flipped acts change the model with per-kind day/night signatures:
+// depave removes the surface entirely; a tree shades the day but the
+// mass under it still releases at night; a cool surface reflects most
+// solar gain and avoids a little banked heat.
+const ACT_DAY = { depave: 0, tree: 0, coolroof: 0.4 }
+const ACT_NIGHT = { depave: 0, tree: 1, coolroof: 0.9 }
+
+// sealedStats computes, per land pixel, the mean effective sealed
+// fraction within the day and night windows (box means via integral
+// images), plus the night-window land count (for flips-per-degree).
+// acts maps local pixel index -> flipped act kind. Water/nodata
+// pixels get S = -1.
+export function sealedStats(grid, w, h, acts) {
   const iw = w + 1
+  const sumD = new Float64Array(iw * (h + 1))
   const sumS = new Float64Array(iw * (h + 1))
   const sumN = new Float64Array(iw * (h + 1))
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const i = y * w + x
       const land = grid[i] <= 100
-      const s = !land || flipped.has(i) ? 0 : grid[i] / 100
+      let sDay = land ? grid[i] / 100 : 0
+      let sNight = sDay
+      const kind = acts.get(i)
+      if (kind !== undefined) {
+        sDay *= ACT_DAY[kind] ?? 0
+        sNight *= ACT_NIGHT[kind] ?? 0
+      }
       const j = (y + 1) * iw + (x + 1)
-      sumS[j] = s + sumS[j - 1] + sumS[j - iw] - sumS[j - iw - 1]
+      sumD[j] = sDay + sumD[j - 1] + sumD[j - iw] - sumD[j - iw - 1]
+      sumS[j] = sNight + sumS[j - 1] + sumS[j - iw] - sumS[j - iw - 1]
       sumN[j] =
         (land ? 1 : 0) + sumN[j - 1] + sumN[j - iw] - sumN[j - iw - 1]
     }
@@ -52,14 +68,14 @@ export function sealedStats(grid, w, h, flipped) {
     a[y0 * iw + x1 + 1] -
     a[(y1 + 1) * iw + x0] +
     a[y0 * iw + x0]
-  const mean = (x, y, r, out, cnt) => {
+  const meanOf = (src, x, y, r, out, cnt) => {
     const x0 = Math.max(0, x - r)
     const y0 = Math.max(0, y - r)
     const x1 = Math.min(w - 1, x + r)
     const y1 = Math.min(h - 1, y + r)
     const n = rect(sumN, x0, y0, x1, y1)
     if (cnt) cnt[y * w + x] = n
-    out[y * w + x] = n ? rect(sumS, x0, y0, x1, y1) / n : 0
+    out[y * w + x] = n ? rect(src, x0, y0, x1, y1) / n : 0
   }
   const Sday = new Float32Array(w * h)
   const Snight = new Float32Array(w * h)
@@ -72,8 +88,8 @@ export function sealedStats(grid, w, h, flipped) {
         Snight[i] = -1
         continue
       }
-      mean(x, y, DAY_RADIUS_PX, Sday, null)
-      mean(x, y, NIGHT_RADIUS_PX, Snight, C)
+      meanOf(sumD, x, y, DAY_RADIUS_PX, Sday, null)
+      meanOf(sumS, x, y, NIGHT_RADIUS_PX, Snight, C)
     }
   }
   return { Sday, Snight, C }

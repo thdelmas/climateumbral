@@ -130,8 +130,9 @@ const mission = computed(() => {
   if (!mine.value.length) {
     return {
       text:
-        'Your first move: find a square on the front line — pledge it ' +
-        'if it is yours to flip, watch it if not.',
+        'Your first move: find a sealed square — pledge a cooling ' +
+        'act (depave, tree, cool surface) if it is yours, watch it ' +
+        'if not.',
       btn: '→ find me a square',
       goto: null,
     }
@@ -215,12 +216,13 @@ async function del(path, token) {
   return res
 }
 
-async function pledge() {
+async function pledge(kind) {
   const { pe, pn } = selected.value
   const before = candidateCount.value
   const res = await post('/api/claims', {
     pe,
     pn,
+    kind,
     name: name.value.trim(),
   })
   if (res.ok) {
@@ -316,8 +318,8 @@ onMounted(async () => {
           <b>orange</b> square: sealed ground touching life.
         </li>
         <li>
-          Yours to flip (your yard, your façade)? <b>Pledge</b> it — a
-          public promise to depave those 100 m² within 90 days.
+          Yours to change? <b>Pledge a cooling act</b> — depave it,
+          plant a tree pit, brighten the surface — 90 days to do it.
         </li>
         <li>
           Not yours to touch (a road, a schoolyard — most squares)?

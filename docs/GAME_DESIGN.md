@@ -91,6 +91,34 @@ only, infra one person can run. If monetization exists it sustains the
 project — municipal heat-adaptation targeting reports/API from the
 same engine — never ads, never user data (rule 5).
 
+## Many levers, one delta
+
+The goal is closing the gap to livable temperature; desealing is one
+lever, not the definition of play. An act is any intervention with a
+defensible cooling signature. v0 act kinds, each with its own day /
+night physics in the model:
+
+| act              | day effect        | night effect      | why |
+|------------------|-------------------|-------------------|-----|
+| **depave**       | full (s → 0)      | full (s → 0)      | soil neither absorbs like asphalt nor banks heat |
+| **tree**         | full (shade)      | none              | canopy blocks sun; the mass under it still releases at night |
+| **cool surface** | strong (s × 0.4)  | slight (s × 0.9)  | albedo reflects solar gain; some banked heat avoided |
+
+Validation differs per act. Depave keeps the front-line rule (hard-
+sealed touching ≥3 green-or-claimed — extend life, don't pot it).
+Trees and cool surfaces are claimable on any hard-sealed square: a
+tree pit breaks the middle of a parking lot precisely where no front
+line reaches. Depaves and trees count as green for the cascade (both
+extend the living network); cool surfaces do not (still sealed).
+
+Only *flipped* acts cool the model — a pledge is a promise, and
+promises don't lower anyone's night temperature (rule 1, again).
+The ledger unit stays m²; the meaning of an act is its degrees.
+
+Future acts follow the same contract (a day/night signature the model
+can defend): façade greening, shade sails, water. The Copernicus Tree
+Cover Density layer is the natural audit for tree acts, epochs apart.
+
 ## Presence & exposure — the stake layer
 
 Where the tiers define *who scores how*, this layer defines *which pixels are

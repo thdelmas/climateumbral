@@ -14,8 +14,40 @@ var (
 
 func pledge(x, y int, name string, ts time.Time) claim {
 	return claim{
-		Pe: x, Pn: y, Name: name, TS: ts,
+		Pe: x, Pn: y, Kind: "depave", Name: name, TS: ts,
 		Deadline: ts.Add(expiry), Token: newToken(),
+	}
+}
+
+func TestGreenSetExcludesCoolroofs(t *testing.T) {
+	tree := pledge(1, 1, "a", t0)
+	tree.Kind = "tree"
+	roof := pledge(2, 2, "b", t0)
+	roof.Kind = "coolroof"
+	l := &ledger{Claims: []claim{tree, roof}}
+	set := l.greenSet(t0)
+	if !set[[2]int{1, 1}] {
+		t.Fatal("trees extend the living network")
+	}
+	if set[[2]int{2, 2}] {
+		t.Fatal("cool surfaces are still sealed")
+	}
+}
+
+func TestLegacyClaimsBecomeDepaves(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "claims.json")
+	legacy := `{"claims":[{"pe":1,"pn":1,"ts":"2026-07-12T11:00:00Z",` +
+		`"deadline":"2026-10-10T11:00:00Z"}],"watches":[]}`
+	if err := os.WriteFile(path, []byte(legacy), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	l, err := loadLedger(path, expiry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l.Claims[0].Kind != "depave" {
+		t.Fatalf("kindless claim should migrate to depave, got %q",
+			l.Claims[0].Kind)
 	}
 }
 
@@ -43,7 +75,7 @@ func TestExpiryFreesThePixel(t *testing.T) {
 	if l.activeAt(5, 5, late) != nil {
 		t.Fatal("expired pledge should release its pixel")
 	}
-	if l.activeSet(late)[[2]int{5, 5}] {
+	if l.greenSet(late)[[2]int{5, 5}] {
 		t.Fatal("expired pledge should not count as green")
 	}
 }

@@ -160,16 +160,16 @@ async function refreshRaster() {
 function recompute() {
   if (!raster) return
   const { g, W, H } = raster
-  const claimedLocal = new Set()
-  const flippedLocal = new Set()
+  const claimedGreen = new Set() // depaves + trees extend the network
+  const flippedActs = new Map() // only flipped acts cool the model
   for (const c of props.claims) {
     const i = localIdx(c.pe, c.pn)
     if (i < 0) continue
-    claimedLocal.add(i)
-    if (c.status === 'flipped') flippedLocal.add(i)
+    if (c.kind !== 'coolroof') claimedGreen.add(i)
+    if (c.status === 'flipped') flippedActs.set(i, c.kind)
   }
-  raster.cands = computeCandidates(g, W, H, claimedLocal)
-  const { Sday, Snight, C } = sealedStats(g, W, H, flippedLocal)
+  raster.cands = computeCandidates(g, W, H, claimedGreen)
+  const { Sday, Snight, C } = sealedStats(g, W, H, flippedActs)
   raster.Sday = Sday
   raster.Snight = Snight
   raster.C = C

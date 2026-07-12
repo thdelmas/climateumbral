@@ -25,6 +25,7 @@ const claimM2 = 100 // one 10 m pixel
 type claim struct {
 	Pe       int        `json:"pe"`
 	Pn       int        `json:"pn"`
+	Kind     string     `json:"kind"` // depave | tree | coolroof
 	Name     string     `json:"name,omitempty"`
 	TS       time.Time  `json:"ts"`
 	Deadline time.Time  `json:"deadline"`
@@ -85,6 +86,9 @@ func loadLedger(path string, expiry time.Duration) (*ledger, error) {
 		if l.Claims[i].Deadline.IsZero() {
 			l.Claims[i].Deadline = l.Claims[i].TS.Add(expiry)
 		}
+		if l.Claims[i].Kind == "" { // pre-acts ledgers were all depaves
+			l.Claims[i].Kind = "depave"
+		}
 	}
 	return l, nil
 }
@@ -114,13 +118,14 @@ func (l *ledger) activeAt(pe, pn int, now time.Time) *claim {
 	return nil
 }
 
-// activeSet is the set of pixels that count as green for the cascade:
-// pledged-and-live or flipped.
-func (l *ledger) activeSet(now time.Time) map[[2]int]bool {
+// greenSet is the set of pixels that count as green for the cascade:
+// live-or-flipped depaves and trees (both extend the living network;
+// a cool surface is still sealed).
+func (l *ledger) greenSet(now time.Time) map[[2]int]bool {
 	set := map[[2]int]bool{}
 	for i := range l.Claims {
 		c := &l.Claims[i]
-		if c.status(now) != statusExpired {
+		if c.status(now) != statusExpired && c.Kind != "coolroof" {
 			set[[2]int{c.Pe, c.Pn}] = true
 		}
 	}

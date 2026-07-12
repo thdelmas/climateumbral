@@ -41,6 +41,13 @@ const sealed = computed(
   () => props.value !== null && props.value >= 90 && props.value <= 100,
 )
 
+const KIND_LABEL = {
+  depave: 'depave',
+  tree: 'tree pit',
+  coolroof: 'cool surface',
+}
+const kindLabel = computed(() => KIND_LABEL[props.claim?.kind] ?? 'act')
+
 const daysLeft = computed(() => {
   if (!props.claim || props.claim.status !== 'pledged') return 0
   const ms = new Date(props.claim.deadline) - Date.now()
@@ -78,7 +85,7 @@ async function copyLink() {
     <div v-if="claim" class="row">
       <template v-if="claim.status === 'flipped'">
         <span class="flipped">
-          flipped by {{ claim.name || 'anonymous' }}
+          {{ kindLabel }} done by {{ claim.name || 'anonymous' }}
           on {{ new Date(claim.flipped).toLocaleDateString() }}
         </span>
         <a v-if="claim.photo" :href="claim.photo" target="_blank"
@@ -86,8 +93,8 @@ async function copyLink() {
       </template>
       <template v-else>
         <span class="pledged">
-          pledged by {{ claim.name || 'anonymous' }} —
-          {{ daysLeft }} days to flip it
+          {{ kindLabel }} pledged by {{ claim.name || 'anonymous' }} —
+          {{ daysLeft }} days to do it
         </span>
       </template>
     </div>
@@ -98,22 +105,36 @@ async function copyLink() {
     </div>
 
     <div v-if="isCandidate && !claim" class="row muted">
-      This square is on the front line: sealed, but touching life.
-      Pledge it only if it is legally yours to depave — if it is a
-      road, a lot, someone else's ground (most squares are), watch it
-      instead and build the coalition.
+      This square is on the front line: sealed, but touching life —
+      depaving it extends the living network.
+    </div>
+    <div v-else-if="sealed && !claim" class="row muted">
+      Not on the front line — but a tree pit shades the day and a cool
+      surface reflects it, anywhere sealed.
+    </div>
+    <div v-if="sealed && !claim" class="row muted">
+      Pledge only ground you may legally change; a road or schoolyard
+      is a watch, not a pledge.
     </div>
     <div class="row actions">
-      <button v-if="isCandidate && !claim" @click="emit('pledge')">
-        pledge to flip it — 90 days
-      </button>
+      <template v-if="sealed && !claim">
+        <button v-if="isCandidate" @click="emit('pledge', 'depave')">
+          pledge: depave
+        </button>
+        <button @click="emit('pledge', 'tree')">
+          pledge: tree pit
+        </button>
+        <button @click="emit('pledge', 'coolroof')">
+          pledge: cool surface
+        </button>
+      </template>
       <template v-if="claim?.status === 'pledged' && myClaimToken">
         <input
           v-model="photo"
           placeholder="photo URL (optional proof)"
           size="24"
         />
-        <button @click="emit('flip', photo)">mark flipped</button>
+        <button @click="emit('flip', photo)">mark it done</button>
         <button class="quiet" @click="emit('abandon')">
           abandon &amp; erase
         </button>

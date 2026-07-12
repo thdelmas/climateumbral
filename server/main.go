@@ -49,10 +49,17 @@ type server struct {
 	expiry     time.Duration
 }
 
-// pledgeable reports whether continent pixel (pe, pn) can be pledged.
-// The 3x3 neighbourhood comes live from the EEA service; callers hold
-// s.mu.
-func (s *server) pledgeable(pe, pn int, now time.Time) error {
+var actKinds = map[string]bool{
+	"depave": true, "tree": true, "coolroof": true,
+}
+
+// pledgeable reports whether continent pixel (pe, pn) can take a
+// pledge of the given kind. All acts need hard-sealed ground; only
+// depaves need the front line (>=3 green-or-claimed neighbours) — a
+// tree pit breaks the middle of a parking lot precisely where no
+// front line reaches. The 3x3 neighbourhood comes live from the EEA
+// service; callers hold s.mu.
+func (s *server) pledgeable(pe, pn int, kind string, now time.Time) error {
 	if !inEurope(pe, pn) {
 		return errors.New("outside the European grid")
 	}
@@ -66,7 +73,10 @@ func (s *server) pledgeable(pe, pn int, now time.Time) error {
 	if v := nb[4]; v < hardSealed || v > 100 {
 		return errors.New("not hard-sealed (needs >=90% imperviousness)")
 	}
-	active := s.ledger.activeSet(now)
+	if kind != "depave" {
+		return nil
+	}
+	green := s.ledger.greenSet(now)
 	greens := 0
 	for dy := -1; dy <= 1; dy++ { // dy = +1 is north
 		for dx := -1; dx <= 1; dx++ {
@@ -74,7 +84,7 @@ func (s *server) pledgeable(pe, pn int, now time.Time) error {
 				continue
 			}
 			v := nb[(1-dy)*3+(1+dx)] // row 0 = north
-			if v <= greenMax || active[[2]int{pe + dx, pn + dy}] {
+			if v <= greenMax || green[[2]int{pe + dx, pn + dy}] {
 				greens++
 			}
 		}
@@ -98,6 +108,7 @@ func (s *server) persist() {
 type claimView struct {
 	Pe       int        `json:"pe"`
 	Pn       int        `json:"pn"`
+	Kind     string     `json:"kind"`
 	Name     string     `json:"name,omitempty"`
 	TS       time.Time  `json:"ts"`
 	Deadline time.Time  `json:"deadline"`
@@ -115,7 +126,7 @@ type watchView struct {
 
 func viewOf(c *claim, now time.Time) claimView {
 	return claimView{
-		Pe: c.Pe, Pn: c.Pn, Name: c.Name, TS: c.TS,
+		Pe: c.Pe, Pn: c.Pn, Kind: c.Kind, Name: c.Name, TS: c.TS,
 		Deadline: c.Deadline, Status: c.status(now),
 		Flipped: c.Flipped, Photo: c.Photo,
 	}
@@ -223,6 +234,7 @@ func (s *server) handlePledge(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Pe   int    `json:"pe"`
 		Pn   int    `json:"pn"`
+		Kind string `json:"kind"`
 		Name string `json:"name"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -234,15 +246,22 @@ func (s *server) handlePledge(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "name too long")
 		return
 	}
+	if req.Kind == "" {
+		req.Kind = "depave"
+	}
+	if !actKinds[req.Kind] {
+		writeErr(w, http.StatusBadRequest, "unknown act kind")
+		return
+	}
 	now := time.Now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.pledgeable(req.Pe, req.Pn, now); err != nil {
+	if err := s.pledgeable(req.Pe, req.Pn, req.Kind, now); err != nil {
 		writeErr(w, http.StatusConflict, err.Error())
 		return
 	}
 	c := claim{
-		Pe: req.Pe, Pn: req.Pn, Name: name, TS: now,
+		Pe: req.Pe, Pn: req.Pn, Kind: req.Kind, Name: name, TS: now,
 		Deadline: now.Add(s.expiry), Token: newToken(),
 	}
 	s.ledger.Claims = append(s.ledger.Claims, c)
