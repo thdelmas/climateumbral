@@ -31,7 +31,7 @@ import (
 const (
 	hardSealed  = 90 // >= this % imperviousness is claimable
 	greenMax    = 10 // <= this % imperviousness counts as green
-	minGreens   = 3  // neighbours needed to be a candidate
+	minGreens   = 2  // neighbours needed to be a candidate
 	maxNameLen  = 40
 	maxPhotoLen = 500
 	maxRaster   = 512 // max viewport raster dimension
@@ -92,7 +92,7 @@ func (s *server) pledgeable(pe, pn int, kind string, now time.Time) error {
 	}
 	if greens < minGreens {
 		return errors.New(
-			"not a candidate: needs >=3 green or claimed neighbours")
+			"not a candidate: needs >=2 green or claimed neighbours")
 	}
 	return nil
 }

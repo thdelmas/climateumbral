@@ -5,7 +5,7 @@ export const SEA = 254
 export const NODATA = 255
 export const HARD_SEALED = 90
 export const GREEN_MAX = 10
-export const MIN_GREENS = 3
+export const MIN_GREENS = 2
 
 export const isGreen = (v) => v <= GREEN_MAX
 export const isSealed = (v) => v >= HARD_SEALED && v < SEA

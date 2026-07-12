@@ -10,6 +10,9 @@ import {
 } from '../lib/proj.js'
 import { ledgerGeojson, selectionGeojson } from '../lib/ledgergeo.js'
 import { fetchAnchors, pickByExposure } from '../lib/anchors.js'
+import { viewport3035, rasterContains, MAX_DIM }
+  from '../lib/viewport.js'
+import { tipTextAt } from '../lib/tiptext.js'
 import {
   computeCandidates,
   colorFor,
@@ -33,7 +36,6 @@ const props = defineProps({
 const emit = defineEmits(['select', 'mode', 'raster'])
 
 const PLAY_ZOOM = 13.2
-const MAX_DIM = 512
 const EEA_PNG =
   'https://image.discomap.eea.europa.eu/arcgis/rest/services' +
   '/GioLandPublic/HRL_ImperviousnessDensity_2018/ImageServer' +
@@ -51,7 +53,6 @@ let overlay = null // offscreen canvas painted with candidates / heat
 let pendingFrontline = false
 let pendingGoTo = null
 
-const key = (pe, pn) => `${pe},${pn}`
 const localIdx = (pe, pn) => {
   if (!raster) return -1
   const col = pe - raster.pe0
@@ -95,43 +96,22 @@ async function refreshRaster() {
     emit('raster', null)
     return
   }
-  const bo = map.getBounds()
-  const corners = [
-    [bo.getWest(), bo.getSouth()],
-    [bo.getEast(), bo.getSouth()],
-    [bo.getWest(), bo.getNorth()],
-    [bo.getEast(), bo.getNorth()],
-  ].map(([lo, la]) => toLAEA(lo, la))
-  let e0 = Math.min(...corners.map((c) => c[0]))
-  let e1 = Math.max(...corners.map((c) => c[0]))
-  let n0 = Math.min(...corners.map((c) => c[1]))
-  let n1 = Math.max(...corners.map((c) => c[1]))
-  if ((e1 - e0) / 10 > MAX_DIM || (n1 - n0) / 10 > MAX_DIM) {
+  if (rasterContains(raster, map.getBounds())) {
+    updateHint()
+    return
+  }
+  const vp = viewport3035(map.getBounds())
+  if (!vp) {
     hint.value = 'zoom in a little more to load the front line'
     setOverlayVisible(false)
     return
   }
-  // Panning inside the last fetch shouldn't refetch: if the viewport
-  // still fits in the loaded raster, everything is already on screen.
-  const r = raster
-  if (
-    r &&
-    e0 >= r.pe0 * 10 && n0 >= r.pn0 * 10 &&
-    e1 <= (r.pe0 + r.W) * 10 && n1 <= (r.pn0 + r.H) * 10
-  ) {
-    updateHint()
-    return
-  }
-  // Fetch with margin so small pans and the zoom-in after "find me a
-  // square" reuse the same raster instead of a new EEA round-trip.
-  const pad = (hi, lo) =>
-    Math.min((hi - lo) * 0.3, (MAX_DIM * 10 - (hi - lo)) / 2)
-  const padE = Math.max(0, pad(e1, e0))
-  const padN = Math.max(0, pad(n1, n0))
-  e0 -= padE
-  e1 += padE
-  n0 -= padN
-  n1 += padN
+  await fetchRasterBbox(vp)
+}
+
+// fetchRasterBbox loads one game raster and recomputes everything on
+// it. Returns true on success.
+async function fetchRasterBbox({ e0, n0, e1, n1 }) {
   loading.value = true
   try {
     const res = await fetch(`/api/raster?bbox=${e0},${n0},${e1},${n1}`)
@@ -149,17 +129,13 @@ async function refreshRaster() {
     recompute()
     updateHint()
     loadAnchors()
+    return true
   } catch (err) {
     hint.value = `front line unavailable: ${err.message}`
+    return false
   } finally {
     loading.value = false
   }
-}
-
-async function loadAnchors() {
-  const r = raster
-  r.anchors = await fetchAnchors(r)
-  if (raster === r) emit('raster', r) // superseded otherwise
 }
 
 // Re-run detection + repaint from cached raster (claims changed, mode
@@ -223,6 +199,25 @@ function paintOverlay() {
       im.data[i * 4 + 3] = a
     }
   }
+  if (!heat) {
+    // halo: tint the candidates' neighbours so the front line pops
+    // at any zoom (display only — the candidate is the center pixel)
+    for (const i of cands) {
+      const x = i % W
+      const y = Math.floor(i / W)
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx
+        const ny = y + dy
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue
+        const j = ny * W + nx
+        if (cands.has(j) || g[j] > 100) continue
+        im.data[j * 4] = (im.data[j * 4] + 255 * 2) / 3
+        im.data[j * 4 + 1] = (im.data[j * 4 + 1] + 122 * 2) / 3
+        im.data[j * 4 + 2] = (im.data[j * 4 + 2] + 26 * 2) / 3
+        im.data[j * 4 + 3] = 235
+      }
+    }
+  }
   ctx.putImageData(im, 0, 0)
   const e0 = raster.pe0 * 10
   const n0 = raster.pn0 * 10
@@ -277,12 +272,32 @@ function syncLedger() {
 
 // ---- interactions ----
 
-function frontline() {
-  if (!raster || !raster.cands?.size) {
-    pendingFrontline = true
-    map.flyTo({ center: [2.165, 41.39], zoom: 15.5, speed: 2.4 })
+async function frontline() {
+  if (raster?.cands?.size) {
+    pickAndGo()
     return
   }
+  // search a full-size raster around the current center before ever
+  // teleporting the player anywhere
+  const c = map.getCenter()
+  const [E, N] = toLAEA(c.lng, c.lat)
+  if (inEurope(Math.floor(E / 10), Math.floor(N / 10))) {
+    hint.value = 'searching the front line around you…'
+    const half = (MAX_DIM * 10) / 2 - 10
+    const ok = await fetchRasterBbox({
+      e0: E - half, n0: N - half, e1: E + half, n1: N + half,
+    })
+    if (ok && raster.cands.size) {
+      pickAndGo()
+      return
+    }
+  }
+  hint.value = 'no front line nearby — flying to the seed city'
+  pendingFrontline = true
+  map.flyTo({ center: [2.165, 41.39], zoom: 15.5, speed: 2.4 })
+}
+
+function pickAndGo() {
   const i = pickByExposure(raster, [...raster.cands])
   const pe = raster.pe0 + (i % raster.W)
   const pn = raster.pn0 + (raster.H - 1 - Math.floor(i / raster.W))
@@ -299,28 +314,6 @@ function goTo(pe, pn) {
     return
   }
   map.jumpTo({ center: pixelCenter(pe, pn), zoom: 16.5 })
-}
-
-function tipTextAt(pe, pn) {
-  const k = key(pe, pn)
-  const claim = props.claims.find((c) => key(c.pe, c.pn) === k)
-  const i = localIdx(pe, pn)
-  const v = i >= 0 ? raster.g[i] : null
-  const S = props.mode === 'day' ? raster.Sday : raster.Snight
-  if (props.mode !== 'land' && i >= 0 && S[i] >= 0) {
-    const coef = props.mode === 'day' ? DAY_COEF : NIGHT_COEF
-    const tag = raster.cands?.has(i) ? ' · candidate' : ''
-    return `+${(coef * S[i]).toFixed(1)} °C ` +
-      `${props.mode} (modeled)${tag}`
-  }
-  if (claim?.status === 'flipped') return 'flipped — soil again'
-  if (claim) return 'pledged — click for details'
-  if (i >= 0 && raster.cands?.has(i)) {
-    return 'candidate — click: pledge it or watch it'
-  }
-  if (v === null) return null
-  if (v > 100) return 'no data'
-  return `${v}% sealed`
 }
 
 onMounted(() => {
@@ -413,7 +406,8 @@ onMounted(() => {
       return
     }
     const [E, N] = toLAEA(e.lngLat.lng, e.lngLat.lat)
-    const text = tipTextAt(Math.floor(E / 10), Math.floor(N / 10))
+    const text = tipTextAt(raster, props.claims, props.mode,
+      Math.floor(E / 10), Math.floor(N / 10))
     tip.value = text
       ? { show: true, x: e.point.x + 14, y: e.point.y + 14, text }
       : { show: false, x: 0, y: 0, text: '' }
