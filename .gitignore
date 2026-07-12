@@ -3,3 +3,6 @@
 grid.json
 __pycache__/
 .DS_Store
+data/
+node_modules/
+web/dist/
