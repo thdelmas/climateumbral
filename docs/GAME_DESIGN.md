@@ -146,11 +146,13 @@ are weighted by the hours you live in them.
 
 Three levels of the same concept, in build order:
 
-1. **Exposure-ranked candidates** (now, server-side, no tracking). Weight the
-   candidate detector by estimated human-hours from open data: population
-   density, schools, playgrounds, plazas, transit stops. A sealed schoolyard
-   holding 400 kids × 6 h beats an empty logistics lot at any sealed-%. Second
-   axis next to gray-touching-green: ecological leverage × human leverage.
+1. **Exposure-ranked candidates** (shipped v0, no tracking). Human-hour
+   anchors from OpenStreetMap (schools ×3, kindergartens ×3, playgrounds
+   ×3, hospitals ×2, markets ×2, bus stops ×1) weight the front line:
+   "find me a square" prefers squares near hours, and a square's panel
+   names its nearest anchor ("≈ 80 m from Escola X"). A sealed
+   schoolyard beats an empty logistics lot at any sealed-%. Next:
+   population-density grids for the ranking's base layer.
 2. **Personal front line** (web first, zero permissions). Users declare their
    places — draw a commute, drop home/work pins, ten seconds — and the map
    centers their exposure and their candidates. This tests the familiarity

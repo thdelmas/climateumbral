@@ -9,6 +9,7 @@ import MapControls from './components/MapControls.vue'
 import { meanPenalty, flipsPerDegree, DAY_COEF, NIGHT_COEF }
   from './lib/heat.js'
 import { inEurope } from './lib/proj.js'
+import { nearestAnchor } from './lib/anchors.js'
 import {
   myName,
   setMyName,
@@ -84,6 +85,9 @@ const selHeat = computed(() => {
     flips: flipsPerDegree(raster.value.g, i, raster.value.C),
   }
 })
+const selAnchor = computed(() =>
+  raster.value ? nearestAnchor(raster.value, selLocal.value) : null,
+)
 const selIsCandidate = computed(
   () => selLocal.value >= 0 && raster.value.cands?.has(selLocal.value),
 )

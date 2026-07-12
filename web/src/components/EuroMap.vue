@@ -9,6 +9,7 @@ import {
   inEurope,
 } from '../lib/proj.js'
 import { ledgerGeojson, selectionGeojson } from '../lib/ledgergeo.js'
+import { fetchAnchors, pickByExposure } from '../lib/anchors.js'
 import {
   computeCandidates,
   colorFor,
@@ -55,8 +56,8 @@ const localIdx = (pe, pn) => {
   if (!raster) return -1
   const col = pe - raster.pe0
   const row = raster.H - 1 - (pn - raster.pn0)
-  if (col < 0 || row < 0 || col >= raster.W || row >= raster.H) return -1
-  return row * raster.W + col
+  const out = col < 0 || row < 0 || col >= raster.W || row >= raster.H
+  return out ? -1 : row * raster.W + col
 }
 
 // ---- game raster: fetch viewport values, detect, paint ----
@@ -75,9 +76,8 @@ function updateHint() {
   }
 }
 
-// In heat modes the continental sealed layer leans warmer and denser:
-// sealed surface is the heat proxy at every scale, and the toggle
-// should visibly answer even before street-level data loads.
+// Heat modes lean the continental sealed layer warmer and denser —
+// the toggle answers even before street-level data loads.
 function basemapMood() {
   if (!map?.getLayer('imd')) return
   const heat = props.mode !== 'land'
@@ -145,14 +145,21 @@ async function refreshRaster() {
       .split(',')
       .map(Number)
     const g = new Uint8Array(await res.arrayBuffer())
-    raster = { g, W, H, pe0: be0 / 10, pn0: bn0 / 10 }
+    raster = { g, W, H, pe0: be0 / 10, pn0: bn0 / 10, anchors: [] }
     recompute()
     updateHint()
+    loadAnchors()
   } catch (err) {
     hint.value = `front line unavailable: ${err.message}`
   } finally {
     loading.value = false
   }
+}
+
+async function loadAnchors() {
+  const r = raster
+  r.anchors = await fetchAnchors(r)
+  if (raster === r) emit('raster', r) // superseded otherwise
 }
 
 // Re-run detection + repaint from cached raster (claims changed, mode
@@ -236,10 +243,8 @@ function paintOverlay() {
   setOverlayVisible(true)
 }
 
-// A permalink session can paint before the style's load handler has
-// added the claims layers; inserting "before claims-fill" then fails
-// and would leave the overlay invisible forever. Add the layer with
-// whatever anchor exists and let the load handler restore order.
+// A pre-load paint can't insert before claims-fill (not added yet);
+// anchor on whatever exists — the load handler restores order.
 function ensureGameLayer() {
   if (map.getLayer('game')) return
   const before = map.getLayer('claims-fill') ? 'claims-fill' : undefined
@@ -251,12 +256,9 @@ function ensureGameLayer() {
 }
 
 function quadOf(e0, n0, e1, n1) {
-  return [
-    fromLAEA(e0, n1), // top-left
-    fromLAEA(e1, n1), // top-right
-    fromLAEA(e1, n0), // bottom-right
-    fromLAEA(e0, n0), // bottom-left
-  ]
+  // TL, TR, BR, BL
+  return [[e0, n1], [e1, n1], [e1, n0], [e0, n0]]
+    .map(([e, n]) => fromLAEA(e, n))
 }
 
 function setOverlayVisible(on) {
@@ -281,8 +283,7 @@ function frontline() {
     map.flyTo({ center: [2.165, 41.39], zoom: 15.5, speed: 2.4 })
     return
   }
-  const arr = [...raster.cands]
-  const i = arr[Math.floor(Math.random() * arr.length)]
+  const i = pickByExposure(raster, [...raster.cands])
   const pe = raster.pe0 + (i % raster.W)
   const pn = raster.pn0 + (raster.H - 1 - Math.floor(i / raster.W))
   map.flyTo({ center: pixelCenter(pe, pn), zoom: 16.5, speed: 2.4 })

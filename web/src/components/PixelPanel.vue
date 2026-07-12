@@ -13,6 +13,7 @@ const props = defineProps({
   dayDelta: Number, // modeled °C above unsealed, null off land
   nightDelta: Number,
   flipsPerDeg: Number, // flips like this one per modeled night degree
+  anchorLabel: String, // nearest human-hours anchor, null if none
 })
 const emit = defineEmits([
   'pledge',
@@ -73,6 +74,10 @@ async function copyLink() {
       </button>
     </div>
 
+    <div v-if="anchorLabel" class="row anchor">
+      people are here: {{ anchorLabel }} — this square's heat is felt
+      in human-hours
+    </div>
     <div v-if="dayDelta !== null" class="row heat">
       block heat, modeled: <b>+{{ dayDelta.toFixed(1) }} °C</b> day ·
       <b>+{{ nightDelta.toFixed(1) }} °C</b> night
@@ -175,6 +180,10 @@ async function copyLink() {
 }
 .heat {
   color: var(--ink-2);
+}
+.anchor {
+  color: var(--accent);
+  font-weight: 600;
 }
 .heat b {
   color: #c25c2a;

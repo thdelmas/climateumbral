@@ -40,6 +40,7 @@ const (
 
 type server struct {
 	eea     *eeaClient
+	anchors *anchorClient
 	hub     *hub
 	limiter *limiter
 
@@ -453,6 +454,7 @@ func main() {
 	expiry := time.Duration(*expiryDays) * 24 * time.Hour
 	s := &server{
 		eea:        newEEA(),
+		anchors:    newAnchors(),
 		hub:        newHub(),
 		limiter:    newLimiter(0.2, 5), // ~12 acts/min after a burst of 5
 		ledgerPath: filepath.Join(*dataDir, "claims.json"),
@@ -468,6 +470,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/raster", s.handleRaster)
+	mux.HandleFunc("GET /api/anchors", s.handleAnchors)
 	mux.HandleFunc("GET /api/claims", s.handleGetLedger)
 	mux.HandleFunc("POST /api/claims", s.limit(s.handlePledge))
 	mux.HandleFunc("POST /api/claims/{pe}/{pn}/flip", s.limit(s.handleFlip))
