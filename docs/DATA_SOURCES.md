@@ -43,6 +43,37 @@ tiles): parseable in ~40 lines of stdlib Python. See `tools/fetch_grid.py`.
 Same server: `GioLandPublic/HRL_WaterWetness_2018`. Same exportImage call.
 Classes: 1 permanent water, 2 temporary water, 3/4 wetness, **253 = sea**.
 
+## Official climate shelters: Open Data BCN, Xarxa de refugis climàtics
+
+Verified live 2026-07-18. There is **no EU-wide shelter dataset** — refuge
+networks are municipal programs, so coverage is per-city adapters
+(`server/refuges.go`); Barcelona is adapter #1. 543 refuges, all with
+coordinates and addresses, ~130 with an official web link. CC BY 4.0,
+updated **weekly** upstream (mirrored with a 7-day TTL).
+
+Dataset page:
+```
+https://opendata-ajuntament.barcelona.cat/data/es/dataset/xarxa-refugis-climatics
+```
+
+Use the **CSV resource** (1.3 MB); the JSON twin of the same data is 40 MB.
+
+### Its traps
+
+1. **The CSV is UTF-16LE** — and carries a stray BOM at the start of *every
+   line*, not just the file. Decode, then strip `﻿` globally before the
+   CSV parser sees it.
+2. **Address columns by header name**, never position — sibling Open Data BCN
+   datasets reorder columns between refreshes.
+3. **The `values_*` columns are an attribute join.** Today the feed is one row
+   per refuge; sibling datasets fan the same schema out to row-per-attribute.
+   Dedupe on `register_id` so a fan-out becomes a no-op instead of 5× pins.
+4. **`timetable` is embedded HTML** (a full `<table>`). Don't strip-and-truncate
+   it into garbled hours — link the refuge's own `Web` attribute instead and
+   say "check hours before you go".
+5. The `barcelona.cat` refuge pages themselves answer **HTTP 418 to bots** —
+   verify links by shape (from the city's own data), not by fetching.
+
 ## The traps (each cost real debugging time — do not rediscover them)
 
 1. **`identify` without `pixelSize` answers from a ~21 km overview mosaic**

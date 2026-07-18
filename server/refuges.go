@@ -1,0 +1,244 @@
+// Official climate shelters — the adaptation layer. A refuge pin is
+// a room a city promised: roof, cool air, opening hours, published as
+// open data by the municipality that runs the network. That promise
+// is the whole tier: pins here NEVER come from the model, and modeled
+// cool islands (client-side) never appear in this list — a wrong
+// "shelter" sends a body somewhere that won't cool it.
+//
+// Europe has no continent-wide shelter dataset; refuge networks are
+// municipal programs. So coverage is a list of per-city adapters, and
+// the response says which networks it carries — an empty map must
+// read "no network published here", never "no shelters exist".
+package main
+
+import (
+	"encoding/csv"
+	"errors"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+	"unicode/utf16"
+)
+
+type refuge struct {
+	Lon  float64 `json:"lon"`
+	Lat  float64 `json:"lat"`
+	Name string  `json:"name"`
+	Addr string  `json:"addr,omitempty"`
+	Web  string  `json:"web,omitempty"`
+	Src  string  `json:"src"`
+}
+
+// refugeSource is one city's published network. Adding a city is
+// adding one entry here plus a parser for its format.
+type refugeSource struct {
+	ID          string
+	Name        string
+	Attribution string
+	URL         string
+	parse       func([]byte) ([]refuge, error)
+}
+
+// Xarxa de refugis climàtics — Ajuntament de Barcelona, CC BY 4.0,
+// updated weekly upstream. The CSV resource (the JSON twin is 40 MB).
+const bcnRefugesCSV = "https://opendata-ajuntament.barcelona.cat" +
+	"/data/dataset/8f9da263-ff41-4765-ab0d-61b97d7a00b2" +
+	"/resource/7ecae024-6cb2-427d-b2d0-e170500e2a38/download"
+
+var refugeSources = []refugeSource{{
+	ID:          "bcn",
+	Name:        "Barcelona — Xarxa de refugis climàtics",
+	Attribution: "Ajuntament de Barcelona, Open Data BCN (CC BY 4.0)",
+	URL:         bcnRefugesCSV,
+	parse:       parseBCNRefuges,
+}}
+
+const refugeTTL = 7 * 24 * time.Hour // upstream cadence is weekly
+
+type refugeEntry struct {
+	refuges []refuge
+	fetched time.Time
+}
+
+type refugeClient struct {
+	http *http.Client
+
+	mu    sync.Mutex
+	cache map[string]refugeEntry
+}
+
+func newRefuges() *refugeClient {
+	return &refugeClient{
+		http:  &http.Client{Timeout: 30 * time.Second},
+		cache: map[string]refugeEntry{},
+	}
+}
+
+// get returns a source's refuges, refetching past the TTL. A failed
+// refetch serves the stale list rather than nothing: last week's
+// shelter network beats an empty map on a hot night.
+func (c *refugeClient) get(src refugeSource) ([]refuge, error) {
+	c.mu.Lock()
+	ent, ok := c.cache[src.ID]
+	c.mu.Unlock()
+	if ok && time.Since(ent.fetched) < refugeTTL {
+		return ent.refuges, nil
+	}
+	list, err := c.fetch(src)
+	if err != nil {
+		if ok {
+			log.Printf("refuges %s: serving stale: %v", src.ID, err)
+			return ent.refuges, nil
+		}
+		return nil, err
+	}
+	c.mu.Lock()
+	c.cache[src.ID] = refugeEntry{refuges: list, fetched: time.Now()}
+	c.mu.Unlock()
+	return list, nil
+}
+
+func (c *refugeClient) fetch(src refugeSource) ([]refuge, error) {
+	res, err := c.http.Get(src.URL)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("refuges %s: %s", src.ID, res.Status)
+	}
+	raw, err := io.ReadAll(io.LimitReader(res.Body, 8<<20))
+	if err != nil {
+		return nil, err
+	}
+	return src.parse(raw)
+}
+
+// decodeMaybeUTF16 turns a BOM-led UTF-16 byte stream into a string;
+// anything else is passed through as UTF-8.
+func decodeMaybeUTF16(b []byte) string {
+	if len(b) < 2 || !((b[0] == 0xFF && b[1] == 0xFE) ||
+		(b[0] == 0xFE && b[1] == 0xFF)) {
+		return string(b)
+	}
+	le := b[0] == 0xFF
+	u := make([]uint16, 0, len(b)/2)
+	for i := 2; i+1 < len(b); i += 2 {
+		if le {
+			u = append(u, uint16(b[i])|uint16(b[i+1])<<8)
+		} else {
+			u = append(u, uint16(b[i])<<8|uint16(b[i+1]))
+		}
+	}
+	return string(utf16.Decode(u))
+}
+
+// parseBCNRefuges reads Open Data BCN's CSV. Traps (all live in the
+// real feed): UTF-16LE with a BOM per line, not just one; columns
+// addressed by header name because the city reorders them; one row
+// per refuge today but register_id deduped in case the values_*
+// columns ever fan out to row-per-attribute like sibling datasets.
+func parseBCNRefuges(raw []byte) ([]refuge, error) {
+	text := strings.ReplaceAll(decodeMaybeUTF16(raw), "\ufeff", "")
+	rd := csv.NewReader(strings.NewReader(text))
+	rd.FieldsPerRecord = -1
+	rows, err := rd.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("bcn refuges: %w", err)
+	}
+	if len(rows) < 2 {
+		return nil, errors.New("bcn refuges: empty csv")
+	}
+	col := map[string]int{}
+	for i, name := range rows[0] {
+		col[strings.TrimSpace(name)] = i
+	}
+	for _, n := range []string{"register_id", "name",
+		"geo_epgs_4326_lat", "geo_epgs_4326_lon"} {
+		if _, ok := col[n]; !ok {
+			return nil, fmt.Errorf("bcn refuges: column %q missing", n)
+		}
+	}
+	get := func(row []string, name string) string {
+		i, ok := col[name]
+		if !ok || i >= len(row) {
+			return ""
+		}
+		return strings.TrimSpace(row[i])
+	}
+	seen := map[string]bool{}
+	out := []refuge{}
+	for _, row := range rows[1:] {
+		id := get(row, "register_id")
+		name := get(row, "name")
+		lat, errLat := strconv.ParseFloat(
+			get(row, "geo_epgs_4326_lat"), 64)
+		lon, errLon := strconv.ParseFloat(
+			get(row, "geo_epgs_4326_lon"), 64)
+		if id == "" || seen[id] || name == "" ||
+			errLat != nil || errLon != nil {
+			continue
+		}
+		seen[id] = true
+		addr := strings.TrimSpace(get(row, "addresses_road_name") +
+			" " + get(row, "addresses_start_street_number"))
+		if d := get(row, "addresses_district_name"); d != "" {
+			if addr != "" {
+				addr += " · "
+			}
+			addr += d
+		}
+		web := ""
+		if get(row, "values_attribute_name") == "Web" {
+			if v := get(row, "values_value"); strings.HasPrefix(v, "http") {
+				web = v
+			}
+		}
+		out = append(out, refuge{
+			Lon: lon, Lat: lat, Name: name, Addr: addr,
+			Web: web, Src: "bcn",
+		})
+	}
+	if len(out) == 0 {
+		return nil, errors.New("bcn refuges: no rows parsed")
+	}
+	return out, nil
+}
+
+type refugeSourceView struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Attribution string `json:"attribution"`
+	OK          bool   `json:"ok"`
+	Count       int    `json:"count"`
+}
+
+// handleRefuges: GET /api/refuges — every adapter's pins plus a
+// per-source status line. Sources are reported even when they fail
+// (OK: false), so the client can say "shelter data unavailable"
+// instead of the false all-clear of an empty layer.
+func (s *server) handleRefuges(w http.ResponseWriter, _ *http.Request) {
+	views := make([]refugeSourceView, 0, len(refugeSources))
+	all := []refuge{}
+	for _, src := range refugeSources {
+		list, err := s.refuges.get(src)
+		if err != nil {
+			log.Printf("refuges %s: %v", src.ID, err)
+		}
+		views = append(views, refugeSourceView{
+			ID: src.ID, Name: src.Name, Attribution: src.Attribution,
+			OK: err == nil, Count: len(list),
+		})
+		all = append(all, list...)
+	}
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	writeJSON(w, http.StatusOK, map[string]any{
+		"sources": views,
+		"refuges": all,
+	})
+}
