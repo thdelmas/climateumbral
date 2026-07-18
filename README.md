@@ -65,6 +65,14 @@ On any city you can:
 - share a **permalink** to any square on the continent (`#pe,pn`); see
   the **ledger** with flipped and pledged m² in separate columns,
   always
+- survive tonight, not just fix next summer: **blue pins** are
+  official climate shelters (per-city open data — Barcelona's Xarxa
+  de refugis climàtics first, adapters welcome), **deep-green pins**
+  in the heat views are modeled cool islands — the green blocks the
+  night model says stay coolest. The two tiers never mix: a shelter
+  is a promise by a city, a cool island is a model's reading. The
+  geolocate button finds the ones around you; your location never
+  leaves the browser
 
 Every square's panel teaches the **legal path**: your own ground you
 may flip (utilities check first); rented needs the owner's yes; public
@@ -107,3 +115,4 @@ See `docs/GAME_DESIGN.md` for the incentive design across levels and
 ## License
 
 Apache-2.0. Data: © European Union, Copernicus Land Monitoring Service / EEA.
+Climate shelters: Ajuntament de Barcelona, Open Data BCN (CC BY 4.0).

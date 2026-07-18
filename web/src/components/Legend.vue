@@ -1,7 +1,22 @@
 <script setup>
+import { computed } from 'vue'
 import { DAY_COEF, NIGHT_COEF, HEAT_GRADIENT_CSS } from '../lib/heat.js'
 
-defineProps({ mode: String })
+const props = defineProps({
+  mode: String,
+  refugeSources: Array, // null until /api/refuges answers (or fails)
+})
+
+// Absence must stay honest: no pins + a down source is an outage,
+// not a city without shelters.
+const refugeLabel = computed(() => {
+  const s = props.refugeSources
+  if (s === null) return 'official climate shelter — data unavailable'
+  const up = (s ?? []).filter((x) => x.ok)
+  if (!up.length) return 'official climate shelter — data unavailable'
+  const cities = up.map((x) => x.name.split(' — ')[0]).join(', ')
+  return `official climate shelter (${cities})`
+})
 </script>
 
 <template>
@@ -15,6 +30,7 @@ defineProps({ mode: String })
     <span><i style="background: rgb(46, 107, 62)" /> green</span>
     <span><i style="background: rgb(72, 118, 160)" /> water</span>
     <span><i class="mine-chip" /> yours</span>
+    <span><i class="pin refuge-chip" /> {{ refugeLabel }}</span>
   </div>
   <div v-else class="legend heat">
     <span class="cap">
@@ -25,6 +41,8 @@ defineProps({ mode: String })
       <i class="grad" :style="{ background: HEAT_GRADIENT_CSS }" />
       <span>+{{ mode === 'day' ? DAY_COEF : NIGHT_COEF }} °C</span>
     </span>
+    <span><i class="pin refuge-chip" /> {{ refugeLabel }}</span>
+    <span><i class="pin cool-chip" /> modeled cool island</span>
   </div>
 </template>
 
@@ -47,6 +65,17 @@ defineProps({ mode: String })
   height: 11px;
   border-radius: 3px;
   display: inline-block;
+}
+.legend i.pin {
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px var(--line);
+}
+.legend i.refuge-chip {
+  background: rgb(43, 108, 196);
+}
+.legend i.cool-chip {
+  background: rgb(58, 122, 84);
 }
 .legend i.block-chip {
   background: transparent;

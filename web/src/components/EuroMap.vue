@@ -24,6 +24,8 @@ import {
   DAY_COEF,
   NIGHT_COEF,
 } from '../lib/heat.js'
+import { fetchRefuges, refugesGeojson } from '../lib/refuges.js'
+import { coolSpots, coolSpotsGeojson } from '../lib/coolspots.js'
 
 const props = defineProps({
   claims: Array, // active claimViews
@@ -33,7 +35,9 @@ const props = defineProps({
   mode: String, // 'land' | 'day' | 'night'
   version: Number, // ledger refresh counter
 })
-const emit = defineEmits(['select', 'raster'])
+const emit = defineEmits(['select', 'raster', 'refuges'])
+
+const EMPTY_FC = { type: 'FeatureCollection', features: [] }
 
 const PLAY_ZOOM = 13.2
 const EEA_PNG =
@@ -89,6 +93,7 @@ async function refreshRaster() {
     raster = null
     updateHint()
     setOverlayVisible(false)
+    map.getSource('coolspots')?.setData(EMPTY_FC)
     emit('raster', null)
     return
   }
@@ -152,6 +157,7 @@ function recompute() {
   raster.Sday = Sday
   raster.Snight = Snight
   raster.C = C
+  map.getSource('coolspots')?.setData(coolSpotsGeojson(coolSpots(raster)))
   paintOverlay()
   emit('raster', raster)
   if (pendingFrontline) {
@@ -256,6 +262,98 @@ function setOverlayVisible(on) {
   }
 }
 
+// ---- cool places: official shelters + modeled cool islands ----
+
+// Two tiers, never blended (see refuges.js / coolspots.js): blue pins
+// are rooms a city promised, green pins are model output. Cool
+// islands only show in the heat views — they are a reading of that
+// model and would masquerade as ground truth on the land map.
+function addCoolPlaceLayers() {
+  map.addSource('refuges', { type: 'geojson', data: EMPTY_FC })
+  map.addLayer({
+    id: 'refuges',
+    type: 'circle',
+    source: 'refuges',
+    minzoom: 10,
+    paint: {
+      'circle-color': 'rgb(43, 108, 196)',
+      'circle-radius': [
+        'interpolate', ['linear'], ['zoom'], 10, 3.5, 16, 8,
+      ],
+      'circle-stroke-color': '#ffffff',
+      'circle-stroke-width': 1.5,
+    },
+  })
+  map.addSource('coolspots', { type: 'geojson', data: EMPTY_FC })
+  map.addLayer({
+    id: 'coolspots',
+    type: 'circle',
+    source: 'coolspots',
+    minzoom: PLAY_ZOOM - 0.5,
+    layout: {
+      visibility: props.mode === 'land' ? 'none' : 'visible',
+    },
+    paint: {
+      'circle-color': 'rgb(58, 122, 84)',
+      'circle-radius': [
+        'interpolate', ['linear'], ['zoom'], 13, 5, 16, 9,
+      ],
+      'circle-stroke-color': '#ffffff',
+      'circle-stroke-width': 1.5,
+    },
+  })
+  fetchRefuges().then(({ sources, refuges }) => {
+    emit('refuges', sources)
+    map?.getSource('refuges')?.setData(refugesGeojson(refuges))
+  })
+}
+
+function coolSpotsVisible() {
+  if (map?.getLayer('coolspots')) {
+    map.setLayoutProperty('coolspots', 'visibility',
+      props.mode === 'land' ? 'none' : 'visible')
+  }
+}
+
+// pinAt: topmost cool-place feature under the cursor, if any.
+function pinAt(point) {
+  const layers = ['refuges', 'coolspots'].filter((l) => map.getLayer(l))
+  if (!layers.length) return null
+  return map.queryRenderedFeatures(point, { layers })[0] ?? null
+}
+
+// The popup builds DOM nodes, not HTML: dataset strings stay text.
+function openRefugePopup(f) {
+  const p = f.properties
+  const el = document.createElement('div')
+  el.className = 'refuge-pop'
+  const name = document.createElement('strong')
+  name.textContent = p.name
+  el.appendChild(name)
+  if (p.addr) {
+    const addr = document.createElement('div')
+    addr.textContent = p.addr
+    el.appendChild(addr)
+  }
+  const note = document.createElement('div')
+  note.className = 'note'
+  note.textContent =
+    'official climate shelter — check hours before you go'
+  el.appendChild(note)
+  if (p.web) {
+    const a = document.createElement('a')
+    a.href = p.web
+    a.target = '_blank'
+    a.rel = 'noopener'
+    a.textContent = 'official page ↗'
+    el.appendChild(a)
+  }
+  new maplibregl.Popup({ maxWidth: '280px' })
+    .setLngLat(f.geometry.coordinates)
+    .setDOMContent(el)
+    .addTo(map)
+}
+
 // ---- claims / blocks / selection as vector layers ----
 
 function syncLedger() {
@@ -341,6 +439,12 @@ onMounted(() => {
     attributionControl: { compact: true },
   })
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }))
+  // "around me": the fix never leaves the browser — no accounts, no
+  // server-side location, matching the ledger's data stance
+  map.addControl(new maplibregl.GeolocateControl({
+    positionOptions: { enableHighAccuracy: true },
+    trackUserLocation: true,
+  }))
   map.on('error', (e) => console.error('map:', e.error ?? e))
   map.on('load', () => {
     map.addSource('claims', {
@@ -391,6 +495,7 @@ onMounted(() => {
       source: 'selection',
       paint: { 'line-color': '#ffffff', 'line-width': 2.5 },
     })
+    addCoolPlaceLayers()
     // a pre-load paint may have added the game layer unanchored;
     // restore the intended order now that the claim layers exist
     if (map.getLayer('game')) map.moveLayer('game', 'claims-fill')
@@ -403,11 +508,27 @@ onMounted(() => {
   })
   map.on('moveend', refreshRaster)
   map.on('click', (e) => {
+    // refuge pins show from city zoom, well before the game raster
+    const pin = pinAt(e.point)
+    if (pin?.layer.id === 'refuges') {
+      openRefugePopup(pin)
+      return
+    }
     if (map.getZoom() < PLAY_ZOOM) return
     const [E, N] = toLAEA(e.lngLat.lng, e.lngLat.lat)
     emit('select', { pe: Math.floor(E / 10), pn: Math.floor(N / 10) })
   })
   map.on('mousemove', (e) => {
+    const pin = pinAt(e.point)
+    if (pin) {
+      tip.value = {
+        show: true,
+        x: e.point.x + 14,
+        y: e.point.y + 14,
+        text: pin.properties.tip,
+      }
+      return
+    }
     if (!raster) {
       tip.value.show = false
       return
@@ -429,6 +550,7 @@ watch(() => props.version, () => {
 watch(() => props.mode, () => {
   basemapMood()
   paintOverlay()
+  coolSpotsVisible()
   updateHint()
 })
 watch(() => props.selected, () => map?.getSource('selection') &&
@@ -496,5 +618,22 @@ defineExpose({ frontline, goTo })
   color: var(--ink-3);
   text-align: center;
   min-height: 1.4em;
+}
+.map :deep(.refuge-pop) {
+  font-size: 13px;
+  line-height: 1.45;
+  color: #1c1c22;
+}
+.map :deep(.refuge-pop strong) {
+  display: block;
+  margin-bottom: 2px;
+}
+.map :deep(.refuge-pop .note) {
+  color: #6b6b74;
+  font-size: 12px;
+  margin: 4px 0;
+}
+.map :deep(.refuge-pop a) {
+  color: rgb(43, 108, 196);
 }
 </style>

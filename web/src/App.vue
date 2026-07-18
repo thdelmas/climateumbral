@@ -37,6 +37,7 @@ const nightMC = ref(0)
 const opened = ref(openedTotal())
 const board = ref(null)
 const raster = shallowRef(null) // viewport snapshot from EuroMap
+const refugeSources = shallowRef(null) // null until /api/refuges answers
 const mode = ref(
   ['day', 'night'].includes(
     new URLSearchParams(location.search).get('view'),
@@ -351,6 +352,13 @@ onMounted(async () => {
         <li>Depaved for real? <b>Mark it flipped</b> (photo link
           welcome).</li>
       </ol>
+      <p class="tonight">
+        Too hot <em>tonight</em>? The <b>blue pins</b> are official
+        climate shelters — real rooms your city keeps cool. In the
+        heat views, <b>deep-green pins</b> mark modeled cool islands:
+        the green blocks the night model says stay coolest. The pin
+        📍 button on the map finds the ones around you.
+      </p>
       <label class="who">
         I am
         <input v-model="name" placeholder="pseudonym (optional)" size="18" />
@@ -397,8 +405,9 @@ onMounted(async () => {
       :version="version"
       @select="select"
       @raster="(r) => (raster = r)"
+      @refuges="(s) => (refugeSources = s)"
     />
-    <Legend :mode="mode" />
+    <Legend :mode="mode" :refuge-sources="refugeSources" />
 
     <PixelPanel
       v-if="selected"
@@ -430,9 +439,12 @@ onMounted(async () => {
       <p>
         Data: © European Union, Copernicus Land Monitoring Service /
         EEA — Imperviousness Density 2018, 10 m. Basemap ©
-        OpenStreetMap contributors. Claims are pledges; satellites keep
-        the real score. The ledger stores only what this board shows;
-        erase your acts anytime from their pixel.
+        OpenStreetMap contributors. Climate shelters: Ajuntament de
+        Barcelona, Open Data BCN (CC BY 4.0) — more city adapters
+        welcome. Claims are pledges; satellites keep the real score.
+        The ledger stores only what this board shows; erase your acts
+        anytime from their pixel. Your location, if you share it,
+        stays in your browser.
       </p>
     </footer>
   </div>
@@ -465,6 +477,15 @@ header h1 {
   margin-top: 4px;
 }
 .steps b {
+  color: var(--ink);
+}
+.tonight {
+  margin-top: 12px;
+  font-size: 14px;
+  color: var(--ink-2);
+  max-width: 60ch;
+}
+.tonight b {
   color: var(--ink);
 }
 .who {
