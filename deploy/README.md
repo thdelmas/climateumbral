@@ -58,6 +58,15 @@ outside the containers).
   If the checkout lives elsewhere than `/opt/climateumbral`, adjust
   `ExecStart` in the service file (and `git config --system --add
   safe.directory <path>` if the repo owner differs from root).
+- Moderation: add `CLIMATEUMBRAL_ADMIN_TOKEN=<long random>` to
+  `/etc/default/climateumbral` (the auto-deploy unit exports it to
+  compose). That token erases any act through the same endpoints
+  players use:
+  `curl -X DELETE -H "X-ClimateUmbral-Token: $ADMIN" https://climateumbral.eu/api/claims/<pe>/<pn>`
+  (same for `/api/joins/<be>/<bn>`). Treat it like the ledger:
+  secret. Empty or unset = moderation off. Auto-deploy only rebuilds
+  when main moves, so apply an env change immediately with:
+  `cd /opt/climateumbral && set -a && . /etc/default/climateumbral && set +a && docker compose -f "${COMPOSE:-deploy/docker-compose.prod.yml}" up -d`
 - Logs: `docker compose -f deploy/docker-compose.prod.yml logs -f --tail 100`
 - The API runs `-trust-proxy` behind Caddy so per-IP limits see real
   client IPs. Memory caps: api 256 MB, caddy 128 MB.

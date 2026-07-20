@@ -7,6 +7,10 @@ services:
     command: >
       climateumbral-server -addr :8080 -data /data -dist /srv/dist
       -trust-proxy
+    environment:
+      # moderation: set in /etc/default/climateumbral on the box
+      # (the auto-deploy unit exports it); empty = off
+      - CLIMATEUMBRAL_ADMIN_TOKEN=${CLIMATEUMBRAL_ADMIN_TOKEN:-}
     volumes:
       - ../data:/data
     restart: unless-stopped

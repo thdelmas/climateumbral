@@ -17,6 +17,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -47,6 +48,7 @@ type server struct {
 	limiter     *limiter
 	readLimiter *limiter
 	trustProxy  bool
+	adminToken  string // moderation: erases any act; "" = off
 
 	mu         sync.Mutex
 	ledger     *ledger
@@ -97,6 +99,15 @@ func (s *server) pledgeable(
 	return nil
 }
 
+// isAdmin reports whether the presented token is the operator's
+// moderation token (CLIMATEUMBRAL_ADMIN_TOKEN). Moderation is the
+// fraud-handling budget GAME_DESIGN demands of a shipped
+// leaderboard: the operator can erase any act with the same DELETE
+// endpoints players use — no separate admin surface to secure.
+func (s *server) isAdmin(token string) bool {
+	return s.adminToken != "" && tokenMatch(token, s.adminToken)
+}
+
 // persist writes the ledger to disk; only a durable write notifies
 // the live streams. Callers hold s.mu and roll their mutation back
 // when this fails — a 2xx must mean "on disk".
@@ -133,8 +144,12 @@ func main() {
 		limiter:     newLimiter(0.2, 5),
 		readLimiter: newLimiter(10, 50),
 		trustProxy:  *trustProxy,
+		adminToken:  os.Getenv("CLIMATEUMBRAL_ADMIN_TOKEN"),
 		ledgerPath:  filepath.Join(*dataDir, "claims.json"),
 		expiry:      expiry,
+	}
+	if s.adminToken != "" {
+		log.Print("moderation on: admin token accepted on DELETE")
 	}
 	var err error
 	s.ledger, err = loadLedger(s.ledgerPath, expiry)

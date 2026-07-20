@@ -310,7 +310,8 @@ func (s *server) handleAbandon(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.Unlock()
 	for i := range s.ledger.Claims {
 		c := s.ledger.Claims[i] // copy: survives the delete below
-		if c.Pe != pe || c.Pn != pn || !tokenMatch(token, c.Token) {
+		if c.Pe != pe || c.Pn != pn ||
+			(!tokenMatch(token, c.Token) && !s.isAdmin(token)) {
 			continue
 		}
 		s.ledger.Claims = slices.Delete(s.ledger.Claims, i, i+1)
@@ -403,7 +404,8 @@ func (s *server) handleLeave(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.Unlock()
 	for i := range s.ledger.Joins {
 		j := s.ledger.Joins[i] // copy: survives the delete below
-		if j.Be != be || j.Bn != bn || !tokenMatch(token, j.Token) {
+		if j.Be != be || j.Bn != bn ||
+			(!tokenMatch(token, j.Token) && !s.isAdmin(token)) {
 			continue
 		}
 		s.ledger.Joins = slices.Delete(s.ledger.Joins, i, i+1)
