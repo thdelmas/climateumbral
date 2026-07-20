@@ -109,7 +109,9 @@ sun but the mass under it still releases at night; albedo reflects
 solar gain and avoids a little banked heat.
 
 Validation differs per act. Depave keeps the front-line rule (hard-
-sealed touching ≥3 green-or-claimed — extend life, don't pot it).
+sealed touching ≥2 green-or-claimed — extend life, don't pot it; ≥2
+is what client and server enforce, loosened from the ≥3 draft so
+corner-touching growth keeps the cascade alive).
 Trees and cool surfaces are claimable on any hard-sealed square: a
 tree pit breaks the middle of a parking lot precisely where no front
 line reaches. Depaves and trees count as green for the cascade (both

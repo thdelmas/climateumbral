@@ -10,6 +10,14 @@ const name = defineModel('name')
       10 × 10 m of ground. Gray is sealed. Green is alive. The game:
       turn gray into green, square by square, until the nights cool.
     </p>
+    <p class="sub umbral">
+      <em>Umbral</em> means threshold — the night a body can sleep
+      through. The heat views show how far each block sits above its
+      unsealed self, day and night as separate maps (modeled — night
+      is the killer); anchoring those degrees to the livability
+      threshold itself, against real satellite thermometers, is where
+      this instrument is headed.
+    </p>
     <ol class="steps">
       <li>
         Hit <b>“find me a square”</b> — it flies to an
@@ -57,6 +65,10 @@ h1 {
 .sub {
   color: var(--ink-2);
   max-width: 60ch;
+}
+.umbral {
+  margin-top: 8px;
+  font-size: 14px;
 }
 .steps {
   margin: 14px 0 0 0;

@@ -34,7 +34,9 @@ const refugeLabel = computed(() => {
   </div>
   <div v-else class="legend heat">
     <span class="cap">
-      {{ mode }} heat penalty vs unsealed (modeled)
+      {{ mode }} heat penalty vs unsealed (modeled) — the gap the
+      levers close; satellite calibration (V4) anchors it to the
+      livable threshold
     </span>
     <span class="grad-row">
       <span>+0 °C</span>

@@ -61,5 +61,22 @@ export function renderOverlay(raster, mode, canvas) {
     }
   }
   ctx.putImageData(im, 0, 0)
+  if (heat) {
+    // labels must survive screenshots (attribution doctrine): the
+    // model's name is tiled into the map itself, not only the
+    // legend. Nearest-neighbor upscaling keeps it chunky — that is
+    // the 10 m pixel aesthetic, and it stays legible.
+    ctx.font = '9px monospace'
+    ctx.textBaseline = 'top'
+    for (let y = 10; y < H; y += 120) {
+      const shift = (Math.floor(y / 120) % 2) * 70
+      for (let x = 10 + shift; x < W; x += 150) {
+        ctx.fillStyle = 'rgba(20, 20, 24, 0.5)'
+        ctx.fillText('modeled °C', x + 1, y + 1)
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)'
+        ctx.fillText('modeled °C', x, y)
+      }
+    }
+  }
   return canvas
 }
