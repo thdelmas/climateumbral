@@ -58,11 +58,16 @@ var refugeSources = []refugeSource{{
 	parse:       parseBCNRefuges,
 }}
 
-const refugeTTL = 7 * 24 * time.Hour // upstream cadence is weekly
+const (
+	refugeTTL   = 7 * 24 * time.Hour // upstream cadence is weekly
+	refugeRetry = 10 * time.Minute   // back off a failing upstream
+)
 
 type refugeEntry struct {
 	refuges []refuge
-	fetched time.Time
+	fetched time.Time // last success
+	tried   time.Time // last attempt
+	err     error     // last failure, for the backoff window
 }
 
 type refugeClient struct {
@@ -81,25 +86,41 @@ func newRefuges() *refugeClient {
 
 // get returns a source's refuges, refetching past the TTL. A failed
 // refetch serves the stale list rather than nothing: last week's
-// shelter network beats an empty map on a hot night.
+// shelter network beats an empty map on a hot night. Failures are
+// cached too (refugeRetry): a dead portal must not turn every
+// request into a 30 s upstream hang.
 func (c *refugeClient) get(src refugeSource) ([]refuge, error) {
 	c.mu.Lock()
 	ent, ok := c.cache[src.ID]
 	c.mu.Unlock()
-	if ok && time.Since(ent.fetched) < refugeTTL {
+	if ok && ent.refuges != nil &&
+		time.Since(ent.fetched) < refugeTTL {
 		return ent.refuges, nil
 	}
+	if ok && time.Since(ent.tried) < refugeRetry {
+		if ent.refuges != nil { // stale beats nothing
+			return ent.refuges, nil
+		}
+		return nil, ent.err
+	}
 	list, err := c.fetch(src)
+	now := time.Now()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if err != nil {
-		if ok {
+		c.cache[src.ID] = refugeEntry{
+			refuges: ent.refuges, fetched: ent.fetched,
+			tried: now, err: err,
+		}
+		if ent.refuges != nil {
 			log.Printf("refuges %s: serving stale: %v", src.ID, err)
 			return ent.refuges, nil
 		}
 		return nil, err
 	}
-	c.mu.Lock()
-	c.cache[src.ID] = refugeEntry{refuges: list, fetched: time.Now()}
-	c.mu.Unlock()
+	c.cache[src.ID] = refugeEntry{
+		refuges: list, fetched: now, tried: now,
+	}
 	return list, nil
 }
 

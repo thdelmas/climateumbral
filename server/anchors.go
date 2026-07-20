@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -34,28 +35,52 @@ type anchor struct {
 	W    float64 `json:"w"`
 }
 
+type anchorEntry struct {
+	anchors []anchor
+	err     error
+	at      time.Time
+}
+
+// anchorErrTTL: how long a failed Overpass fetch is remembered, so a
+// down upstream isn't re-hit by every map pan.
+const anchorErrTTL = 5 * time.Minute
+
 type anchorClient struct {
 	http  *http.Client
 	mu    sync.Mutex
-	cache map[string][]anchor
+	cache map[string]anchorEntry
 }
 
 func newAnchors() *anchorClient {
 	return &anchorClient{
 		http:  &http.Client{Timeout: 30 * time.Second},
-		cache: map[string][]anchor{},
+		cache: map[string]anchorEntry{},
 	}
 }
 
 func (a *anchorClient) fetch(w, s, e, n float64) ([]anchor, error) {
 	key := fmt.Sprintf("%.4f,%.4f,%.4f,%.4f", w, s, e, n)
 	a.mu.Lock()
-	if v, ok := a.cache[key]; ok {
+	if ent, ok := a.cache[key]; ok &&
+		(ent.err == nil || time.Since(ent.at) < anchorErrTTL) {
 		a.mu.Unlock()
-		return v, nil
+		return ent.anchors, ent.err
 	}
 	a.mu.Unlock()
 
+	out, err := a.fetchRemote(w, s, e, n)
+	a.mu.Lock()
+	if len(a.cache) > 128 { // simple shed; anchors are cheap to refetch
+		a.cache = map[string]anchorEntry{}
+	}
+	a.cache[key] = anchorEntry{anchors: out, err: err, at: time.Now()}
+	a.mu.Unlock()
+	return out, err
+}
+
+func (a *anchorClient) fetchRemote(
+	w, s, e, n float64,
+) ([]anchor, error) {
 	bb := fmt.Sprintf("(%f,%f,%f,%f)", s, w, n, e)
 	amen := `["amenity"~"^(school|kindergarten|hospital|marketplace)$"]`
 	q := `[out:json][timeout:10];(` +
@@ -119,12 +144,6 @@ func (a *anchorClient) fetch(w, s, e, n float64) ([]anchor, error) {
 			Name: el.Tags["name"], W: wt,
 		})
 	}
-	a.mu.Lock()
-	if len(a.cache) > 128 { // simple shed; anchors are cheap to refetch
-		a.cache = map[string][]anchor{}
-	}
-	a.cache[key] = out
-	a.mu.Unlock()
 	return out, nil
 }
 
@@ -140,14 +159,17 @@ func (s *server) handleAnchors(w http.ResponseWriter, r *http.Request) {
 	var b [4]float64
 	for i, p := range parts {
 		v, err := strconv.ParseFloat(p, 64)
-		if err != nil {
+		// NaN compares false with everything: the size guard below
+		// cannot be trusted to reject it, so reject it here
+		if err != nil || math.IsNaN(v) || math.IsInf(v, 0) {
 			writeErr(w, http.StatusBadRequest, "bad bbox number")
 			return
 		}
 		b[i] = v
 	}
 	if b[2]-b[0] <= 0 || b[3]-b[1] <= 0 ||
-		b[2]-b[0] > 0.12 || b[3]-b[1] > 0.08 {
+		b[2]-b[0] > 0.12 || b[3]-b[1] > 0.08 ||
+		b[0] < -180 || b[2] > 180 || b[1] < -90 || b[3] > 90 {
 		writeErr(w, http.StatusBadRequest, "bbox too large or empty")
 		return
 	}

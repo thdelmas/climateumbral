@@ -38,14 +38,14 @@ func parseTIFF(data []byte, width, height int) ([]byte, error) {
 			val: int(bo.Uint32(data[p+8:])),
 		}
 	}
-	values := func(t tag) []int {
+	values := func(t tag) ([]int, error) {
 		size := 4
 		if t.typ == 3 {
 			size = 2
 		}
 		if t.cnt*size <= 4 {
 			if t.cnt == 1 {
-				return []int{t.val}
+				return []int{t.val}, nil
 			}
 			out := make([]int, t.cnt)
 			var raw [4]byte
@@ -53,7 +53,12 @@ func parseTIFF(data []byte, width, height int) ([]byte, error) {
 			for i := range out {
 				out[i] = int(bo.Uint16(raw[i*2:]))
 			}
-			return out
+			return out, nil
+		}
+		// offsets come from upstream bytes: bound them before
+		// dereferencing, or a truncated body panics the handler
+		if t.val < 0 || t.val+t.cnt*size > len(data) {
+			return nil, fmt.Errorf("tiff: tag values out of range")
 		}
 		out := make([]int, t.cnt)
 		for i := range out {
@@ -64,7 +69,7 @@ func parseTIFF(data []byte, width, height int) ([]byte, error) {
 				out[i] = int(bo.Uint32(data[p:]))
 			}
 		}
-		return out
+		return out, nil
 	}
 
 	if c, ok := tags[259]; ok && c.val != 1 {
@@ -73,21 +78,34 @@ func parseTIFF(data []byte, width, height int) ([]byte, error) {
 	img := make([]byte, width*height) // zero-filled: empty stays zero
 	if t, tiled := tags[322]; tiled {
 		tw, tl := t.val, tags[323].val
+		if tw <= 0 || tl <= 0 {
+			return nil, fmt.Errorf("tiff: bad tile size %dx%d", tw, tl)
+		}
 		perRow := int(math.Ceil(float64(width) / float64(tw)))
-		offs, counts := values(tags[324]), values(tags[325])
+		offs, err := values(tags[324])
+		if err != nil {
+			return nil, err
+		}
+		counts, err := values(tags[325])
+		if err != nil {
+			return nil, err
+		}
 		for i, toff := range offs {
 			if toff == 0 || i >= len(counts) || counts[i] == 0 {
 				continue
 			}
 			ty, tx := i/perRow, i%perRow
+			w := min(tw, width-tx*tw)
+			if w <= 0 {
+				continue // tile column beyond the image
+			}
 			for r := 0; r < tl; r++ {
 				y := ty*tl + r
 				if y >= height {
 					break
 				}
-				w := min(tw, width-tx*tw)
 				src := toff + r*tw
-				if src+w > len(data) {
+				if src < 0 || src+w > len(data) {
 					return nil, fmt.Errorf("tiff: tile out of range")
 				}
 				copy(img[y*width+tx*tw:], data[src:src+w])
@@ -99,14 +117,27 @@ func parseTIFF(data []byte, width, height int) ([]byte, error) {
 	if t, ok := tags[278]; ok {
 		rps = t.val
 	}
-	offs, counts := values(tags[273]), values(tags[279])
+	if rps <= 0 {
+		return nil, fmt.Errorf("tiff: bad rows-per-strip %d", rps)
+	}
+	offs, err := values(tags[273])
+	if err != nil {
+		return nil, err
+	}
+	counts, err := values(tags[279])
+	if err != nil {
+		return nil, err
+	}
 	for i, soff := range offs {
 		if soff == 0 || i >= len(counts) || counts[i] == 0 {
 			continue
 		}
 		start := i * rps * width
+		if start >= len(img) {
+			return nil, fmt.Errorf("tiff: strip beyond image")
+		}
 		end := min(start+counts[i], len(img))
-		if soff+end-start > len(data) {
+		if soff < 0 || soff+end-start > len(data) {
 			return nil, fmt.Errorf("tiff: strip out of range")
 		}
 		copy(img[start:end], data[soff:soff+end-start])

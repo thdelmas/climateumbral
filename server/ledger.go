@@ -2,10 +2,12 @@ package main
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -122,16 +124,40 @@ func loadLedger(path string, expiry time.Duration) (*ledger, error) {
 	return l, nil
 }
 
+// persist writes the ledger atomically and durably: tmp file, fsync,
+// rename, directory fsync. 0600 — the file holds the bearer tokens
+// that are the only proof of authorship; no other local user gets to
+// read them.
 func (l *ledger) persist(path string) error {
 	raw, err := json.MarshalIndent(l, "", " ")
 	if err != nil {
 		return err
 	}
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, raw, 0o644); err != nil {
+	f, err := os.OpenFile(tmp,
+		os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	if _, err := f.Write(raw); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil { // survive power loss, not crash
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return err
+	}
+	if d, err := os.Open(filepath.Dir(path)); err == nil {
+		d.Sync() // the rename is durable only after a dir sync
+		d.Close()
+	}
+	return nil
 }
 
 // activeAt returns the claim currently holding (pe, pn): a live pledge
@@ -264,4 +290,11 @@ func newToken() string {
 		panic(err) // the OS entropy source is gone; nothing sane to do
 	}
 	return hex.EncodeToString(b)
+}
+
+// tokenMatch compares a presented token against the stored one in
+// constant time; empty tokens never match.
+func tokenMatch(got, want string) bool {
+	return got != "" &&
+		subtle.ConstantTimeCompare([]byte(got), []byte(want)) == 1
 }

@@ -1,7 +1,8 @@
 // Client for the EEA Copernicus imperviousness image service — the
 // only upstream Tilewhip has. Values: 0-100 = % sealed, 255 = nodata.
 // Free, keyless, but external: every game-critical read is either
-// tiny (a 3x3 neighbourhood per pledge) or cached (viewport rasters).
+// tiny (a 3x3 neighbourhood per pledge) or cached (viewport rasters),
+// and concurrent misses for the same key share one upstream fetch.
 package main
 
 import (
@@ -16,29 +17,39 @@ import (
 	"time"
 )
 
-const eeaExport = "https://image.discomap.eea.europa.eu/arcgis/rest" +
+const eeaHost = "image.discomap.eea.europa.eu"
+
+const eeaExport = "https://" + eeaHost + "/arcgis/rest" +
 	"/services/GioLandPublic/HRL_ImperviousnessDensity_2018" +
 	"/ImageServer/exportImage"
 
-const eeaWater = "https://image.discomap.eea.europa.eu/arcgis/rest" +
+const eeaWater = "https://" + eeaHost + "/arcgis/rest" +
 	"/services/GioLandPublic/HRL_WaterWetness_2018" +
 	"/ImageServer/exportImage"
 
 const waterValue = 254 // merged marker: permanent water or sea
 
+type flight struct {
+	done chan struct{}
+	img  []byte
+	err  error
+}
+
 type eeaClient struct {
 	http *http.Client
 
-	mu    sync.Mutex
-	cache map[string][]byte
-	order *list.List // cache keys, oldest first
+	mu       sync.Mutex
+	cache    map[string][]byte
+	order    *list.List // cache keys, oldest first
+	inflight map[string]*flight
 }
 
 func newEEA() *eeaClient {
 	return &eeaClient{
-		http:  &http.Client{Timeout: 90 * time.Second},
-		cache: map[string][]byte{},
-		order: list.New(),
+		http:     &http.Client{Timeout: 90 * time.Second},
+		cache:    map[string][]byte{},
+		order:    list.New(),
+		inflight: map[string]*flight{},
 	}
 }
 
@@ -48,6 +59,8 @@ const cacheCap = 64
 // the water mask (WAW class 1 = permanent water, 253 = sea, both ->
 // 254), so quays don't read as touching "green" and water paints as
 // water. srid is "3857" (viewport rasters) or "3035" (validation).
+// One upstream fetch per key at a time: latecomers wait for the
+// flight already in the air instead of launching their own.
 func (c *eeaClient) values(srid, bbox string, w, h int) ([]byte, error) {
 	key := fmt.Sprintf("%s|%s|%dx%d", srid, bbox, w, h)
 	c.mu.Lock()
@@ -55,8 +68,39 @@ func (c *eeaClient) values(srid, bbox string, w, h int) ([]byte, error) {
 		c.mu.Unlock()
 		return v, nil
 	}
+	if f, ok := c.inflight[key]; ok {
+		c.mu.Unlock()
+		<-f.done
+		return f.img, f.err
+	}
+	f := &flight{done: make(chan struct{})}
+	c.inflight[key] = f
 	c.mu.Unlock()
 
+	f.img, f.err = c.fetchMerged(srid, bbox, w, h)
+
+	c.mu.Lock()
+	delete(c.inflight, key)
+	if f.err == nil {
+		if _, ok := c.cache[key]; !ok {
+			c.cache[key] = f.img
+			c.order.PushBack(key)
+			if c.order.Len() > cacheCap {
+				old := c.order.Remove(c.order.Front()).(string)
+				delete(c.cache, old)
+			}
+		}
+	}
+	c.mu.Unlock()
+	close(f.done)
+	return f.img, f.err
+}
+
+// fetchMerged pulls the imperviousness and water layers in parallel
+// and merges the water mask in.
+func (c *eeaClient) fetchMerged(
+	srid, bbox string, w, h int,
+) ([]byte, error) {
 	var img, waw []byte
 	var errImg, errWaw error
 	var wg sync.WaitGroup
@@ -84,17 +128,6 @@ func (c *eeaClient) values(srid, bbox string, w, h int) ([]byte, error) {
 			}
 		}
 	}
-
-	c.mu.Lock()
-	if _, ok := c.cache[key]; !ok {
-		c.cache[key] = img
-		c.order.PushBack(key)
-		if c.order.Len() > cacheCap {
-			old := c.order.Remove(c.order.Front()).(string)
-			delete(c.cache, old)
-		}
-	}
-	c.mu.Unlock()
 	return img, nil
 }
 
@@ -126,8 +159,12 @@ func (c *eeaClient) exportLayer(
 	if err := c.getJSON(base+"?"+q.Encode(), &meta); err != nil {
 		return nil, err
 	}
-	if meta.Href == "" {
-		return nil, fmt.Errorf("eea: exportImage returned no href")
+	// the href comes from upstream JSON: never follow it off the EEA
+	// host, or a poisoned response steers our fetches anywhere
+	hu, err := url.Parse(meta.Href)
+	if err != nil || hu.Scheme != "https" || hu.Host != eeaHost {
+		return nil, fmt.Errorf("eea: exportImage href not on %s",
+			eeaHost)
 	}
 	tif, err := c.getBytes(meta.Href)
 	if err != nil {
