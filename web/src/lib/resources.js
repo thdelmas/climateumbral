@@ -82,6 +82,18 @@ export const RESOURCES = [
       'seriously: wet-bulb limits and who hits them first.',
   },
   {
+    kind: 'video',
+    title: 'FREE Water was ILLEGAL… He Changed That…',
+    source: 'Andrew Millison',
+    year: 2026,
+    url: 'https://www.youtube.com/watch?v=lQ-jdUGCxcc',
+    yt: 'lQ-jdUGCxcc',
+    note: 'Brad Lancaster’s Tucson: cut the curb, harvest the ' +
+      'street’s rain, shade the block with trees — one neighbor ' +
+      'cooling a desert neighborhood by hand. The tree-pit lever, ' +
+      'lived for thirty years.',
+  },
+  {
     kind: 'act',
     title: 'NK Tegelwippen',
     source: 'The Netherlands',
