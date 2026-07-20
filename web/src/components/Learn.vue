@@ -168,6 +168,10 @@
 
     <section id="tonight">
       <h3>Too hot tonight — shelters and cool islands</h3>
+      <p>
+        <a class="cool-link" href="#cool">Too hot right now? Open
+          the simple finder →</a>
+      </p>
       <ul>
         <li><b>Blue pins</b> — official climate shelters: real
           rooms with addresses and hours, a promise by a named city

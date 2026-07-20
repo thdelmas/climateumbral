@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, ref, shallowRef, watch }
   from 'vue'
+import CoolNow from './components/CoolNow.vue'
 import EuroMap from './components/EuroMap.vue'
 import IntroHeader from './components/IntroHeader.vue'
 import PixelPanel from './components/PixelPanel.vue'
@@ -15,6 +16,7 @@ import { inEurope } from './lib/proj.js'
 import { nearestAnchor } from './lib/anchors.js'
 import { actNightMC, blockOf, blockKey, blockCoolingSince }
   from './lib/blocks.js'
+import { STRINGS, pickLang } from './lib/cooltext.js'
 import {
   myName,
   setMyName,
@@ -50,6 +52,24 @@ const mode = ref(
     ? new URLSearchParams(location.search).get('view')
     : 'land',
 )
+
+// ---- the panic path -------------------------------------------
+// #cool is a real address: printable on a flyer, linkable from a
+// city's canicule page, survivable by the back button. The banner
+// speaks the browser's language — the person it serves may read no
+// English at all.
+const coolOpen = ref(location.hash === '#cool')
+const coolT = STRINGS[pickLang()]
+window.addEventListener('hashchange', () => {
+  coolOpen.value = location.hash === '#cool'
+})
+function closeCool() {
+  coolOpen.value = false
+  if (location.hash === '#cool') {
+    history.replaceState(null, '',
+      location.pathname + location.search)
+  }
+}
 
 watch(name, (n) => setMyName(n.trim()))
 
@@ -390,16 +410,21 @@ onMounted(async () => {
 </script>
 
 <template>
-  <nav class="topnav" aria-label="site">
+  <nav class="topnav" aria-label="site" :inert="coolOpen">
     <div class="inner">
       <a class="brand" href="#top">ClimateUmbral</a>
       <a href="#map">map</a>
       <a href="#act">act</a>
       <a href="#learn">guide</a>
       <a href="#ledger">ledger</a>
+      <a class="hot" href="#cool">{{ coolT.title }}</a>
     </div>
   </nav>
-  <div id="top" class="wrap">
+  <CoolNow v-if="coolOpen" @close="closeCool" />
+  <div id="top" class="wrap" :inert="coolOpen">
+    <a class="sos" href="#cool">
+      🥵 {{ coolT.title }} <span>{{ coolT.find }} →</span>
+    </a>
     <IntroHeader />
 
     <main>
@@ -532,6 +557,31 @@ onMounted(async () => {
   color: var(--ink);
   margin-right: auto;
   letter-spacing: -0.01em;
+}
+.topnav .hot {
+  color: var(--ember);
+  font-weight: 700;
+}
+/* The doorway to the panic path: first thing on the page, one big
+   target, readable at arm's length. */
+.sos {
+  display: block;
+  margin-bottom: clamp(14px, 3vw, 24px);
+  padding: 14px 18px;
+  border: 2px solid var(--ember);
+  border-radius: 16px;
+  background: var(--card);
+  color: var(--ink);
+  font-size: 19px;
+  font-weight: 800;
+  text-decoration: none;
+  text-align: center;
+}
+.sos span {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink-2);
 }
 .wrap {
   max-width: 720px;
