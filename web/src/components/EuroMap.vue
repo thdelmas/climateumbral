@@ -284,12 +284,51 @@ function syncLedger() {
 
 // ---- interactions ----
 
+// grantedPosition: the device fix, but only when the user already
+// granted geolocation (to this site or via the 📍 control) — a
+// "find" click must never spring a permission dialog. The fix moves
+// the map and nothing else; it never leaves the browser.
+async function grantedPosition() {
+  try {
+    const st =
+      await navigator.permissions.query({ name: 'geolocation' })
+    if (st.state !== 'granted') return null
+    return await new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (p) => resolve(p),
+        () => resolve(null),
+        { timeout: 4000, maximumAge: 300000 },
+      )
+    })
+  } catch {
+    return null
+  }
+}
+
 async function frontline() {
   if (raster?.cands?.size) {
     pickAndGo()
     return
   }
-  // search around the current center before teleporting anywhere
+  // near the player first: their granted location beats wherever
+  // the map happens to be pointing
+  const pos = await grantedPosition()
+  if (pos) {
+    const [E, N] =
+      toLAEA(pos.coords.longitude, pos.coords.latitude)
+    if (inEurope(Math.floor(E / 10), Math.floor(N / 10))) {
+      hint.value = 'searching the front line around you…'
+      const half = (MAX_DIM * 10) / 2 - 10
+      const ok = await fetchRasterBbox({
+        e0: E - half, n0: N - half, e1: E + half, n1: N + half,
+      })
+      if (ok && raster.cands.size) {
+        pickAndGo()
+        return
+      }
+    }
+  }
+  // then around the current center before teleporting anywhere
   const c = map.getCenter()
   const [E, N] = toLAEA(c.lng, c.lat)
   if (inEurope(Math.floor(E / 10), Math.floor(N / 10))) {
@@ -505,6 +544,10 @@ defineExpose({ frontline, goTo, shelterTonight })
     <div v-if="loading" class="loading" role="status">
       loading the front line…
     </div>
+    <div v-if="!raster && !loading" class="start">
+      <button @click="frontline">→ find me a square</button>
+      <span>or zoom into your city</span>
+    </div>
     <p class="hint" aria-live="polite">
       {{ loading ? 'loading the front line…' : hint }}
     </p>
@@ -536,6 +579,42 @@ defineExpose({ frontline, goTo, shelterTonight })
   border-radius: 6px;
   white-space: nowrap;
   z-index: 3;
+}
+/* empty state: at continental zoom nothing is playable yet, so the
+   map itself offers the first move instead of sitting mute */
+.start {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 14px;
+  z-index: 2;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 94%;
+  text-align: center;
+}
+.start button {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  border: none;
+  background: var(--accent);
+  color: var(--bg);
+}
+.start span {
+  font-size: 13px;
+  color: var(--ink-2);
 }
 .loading {
   position: absolute;

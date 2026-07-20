@@ -1,7 +1,7 @@
 <script setup>
 defineProps({ mode: String })
 const emit = defineEmits(['frontline', 'shelter', 'mode'])
-const labels = { land: 'map', day: 'day °C', night: 'night °C' }
+const labels = { land: 'map', day: 'day heat', night: 'night heat' }
 </script>
 
 <template>

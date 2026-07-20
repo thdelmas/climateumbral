@@ -24,6 +24,8 @@ const emit = defineEmits([
   'leave',
 ])
 
+const name = defineModel('name')
+
 const photo = ref('')
 const copied = ref(false)
 
@@ -166,6 +168,17 @@ async function copyLink() {
         <a href="#learn">understand &amp; act</a> below.
       </p>
     </details>
+    <label
+      v-if="(sealed && !claim) || !joined"
+      class="row who"
+    >
+      sign as
+      <input
+        v-model="name"
+        placeholder="pseudonym (optional)"
+        size="14"
+      />
+    </label>
     <div class="row actions">
       <template v-if="sealed && !claim">
         <button v-if="isCandidate" @click="emit('pledge', 'depave')">
@@ -253,6 +266,14 @@ async function copyLink() {
 .pledged {
   color: var(--warm);
   font-weight: 600;
+}
+.who {
+  color: var(--ink-2);
+  font-size: 13.5px;
+  align-items: center;
+}
+.who input {
+  flex: 0 1 200px;
 }
 .flipped {
   color: var(--accent);

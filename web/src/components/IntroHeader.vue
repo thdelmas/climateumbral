@@ -1,5 +1,7 @@
 <script setup>
-const name = defineModel('name')
+// Compact by design: the map is the product, so the header spends
+// three lines, and everything teachable folds into "how to play"
+// or the understand & act section below the board.
 </script>
 
 <template>
@@ -7,56 +9,39 @@ const name = defineModel('name')
     <h1>ClimateUmbral</h1>
     <p class="sub">
       Europe as the satellite sees it — every square a real
-      10 × 10 m of ground. Gray is sealed. Green is alive. The game:
-      turn gray into green, square by square, until the nights cool.
+      10 × 10 m of ground. Gray is sealed, green is alive: turn gray
+      green, square by square, until the nights cool.
     </p>
-    <p class="sub umbral">
-      <em>Umbral</em> means threshold — the night a body can sleep
-      through. The heat views show how far each block sits above its
-      unsealed self, day and night as separate maps (modeled — night
-      is the killer); anchoring those degrees to the livability
-      threshold itself, against real satellite thermometers, is where
-      this instrument is headed.
-    </p>
-    <ol class="steps">
-      <li>
-        Hit <b>“find me a square”</b> — it flies to an
-        <b>orange</b> square: sealed ground touching life.
-      </li>
-      <li>
-        Yours to change — legally? <b>Pledge a cooling act</b> —
-        depave it, plant a tree pit, brighten the surface — 90 days
-        to do it. Unsure? Every square's panel shows the legal path.
-      </li>
-      <li>
-        Not yours to touch (a road, a schoolyard — most squares)?
-        <b>Join the block</b> — a standing petition, scored by how
-        the block's nights cool from the day you sign.
-      </li>
-      <li>Depaved for real? <b>Mark it flipped</b> (photo link
-        welcome).</li>
-    </ol>
-    <p class="tonight">
-      Too hot <em>tonight</em>? Hit <b>“nearest shelter”</b> — it
-      flies to the closest <b>blue pin</b>: an official climate
-      shelter, a real room your city keeps cool (tap 📍 first and
-      it starts from where you stand). In the heat views,
-      <b>deep-green pins</b> mark modeled cool islands: the green
-      blocks the night model says stay coolest.
-    </p>
-    <p class="learnlink">
-      New here? <a href="#learn">Understand &amp; act</a> — why
-      nights cook, the levers with their pros and cons, the legal
-      path, and what you can do from your exact situation.
-    </p>
-    <label class="who">
-      I am
-      <input
-        v-model="name"
-        placeholder="pseudonym (optional)"
-        size="18"
-      />
-    </label>
+    <details class="how">
+      <summary>How to play — 60 seconds</summary>
+      <ol class="steps">
+        <li>
+          Hit <b>“find me a square”</b> — it flies to an
+          <b>orange</b> square: sealed ground touching life, near
+          you if you've shared your location.
+        </li>
+        <li>
+          Yours to change — legally? <b>Pledge a cooling act</b> —
+          depave it, plant a tree pit, brighten the surface — 90
+          days to do it. Unsure? Every square's panel shows the
+          legal path.
+        </li>
+        <li>
+          Not yours to touch (a road, a schoolyard — most squares)?
+          <b>Join the block</b> — a standing petition, scored by how
+          the block's nights cool from the day you sign.
+        </li>
+        <li>Depaved for real? <b>Mark it flipped</b> (photo link
+          welcome).</li>
+      </ol>
+      <p class="more">
+        Too hot <em>tonight</em>? <b>“Nearest shelter”</b> flies to
+        an official climate shelter — a real room your city keeps
+        cool. And <em>umbral</em> means threshold: the night a body
+        can sleep through — the full story, the levers and the law
+        live in <a href="#learn">understand &amp; act</a>.
+      </p>
+    </details>
   </header>
 </template>
 
@@ -71,56 +56,38 @@ h1 {
   color: var(--ink-2);
   max-width: 60ch;
 }
-.umbral {
-  margin-top: 8px;
+.how {
+  margin: 10px 0 14px;
+  color: var(--ink-2);
   font-size: 14px;
+  max-width: 60ch;
+}
+.how summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--ink);
+}
+@media (pointer: coarse) {
+  .how summary {
+    padding: 8px 0;
+  }
 }
 .steps {
-  margin: 14px 0 0 0;
+  margin: 10px 0 0 0;
   padding-left: 22px;
-  font-size: 14px;
-  color: var(--ink-2);
-  max-width: 60ch;
 }
 .steps li + li {
   margin-top: 4px;
 }
-.steps b {
+.steps b,
+.more b {
   color: var(--ink);
 }
-.tonight {
-  margin-top: 12px;
-  font-size: 14px;
-  color: var(--ink-2);
-  max-width: 60ch;
+.more {
+  margin-top: 10px;
 }
-.tonight b {
-  color: var(--ink);
-}
-.learnlink {
-  margin-top: 12px;
-  font-size: 14px;
-  color: var(--ink-2);
-  max-width: 60ch;
-}
-.learnlink a {
+.more a {
   color: var(--accent);
   font-weight: 600;
-}
-.who {
-  display: inline-flex;
-  gap: 8px;
-  align-items: baseline;
-  margin-top: 12px;
-  font-size: 14px;
-  color: var(--ink-2);
-}
-.who input {
-  font: inherit;
-  padding: 4px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--line);
-  background: var(--card);
-  color: var(--ink);
 }
 </style>

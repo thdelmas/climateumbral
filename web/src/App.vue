@@ -40,6 +40,7 @@ const flippedM2 = ref(0)
 const nightMC = ref(0)
 const opened = ref(openedTotal())
 const board = ref(null)
+const panelEl = ref(null)
 const raster = shallowRef(null) // viewport snapshot from EuroMap
 const refugeSources = shallowRef(null) // null until /api/refuges answers
 const mode = ref(
@@ -51,6 +52,19 @@ const mode = ref(
 )
 
 watch(name, (n) => setMyName(n.trim()))
+
+// a selected square must be seen to be acted on: on mobile the panel
+// renders below the map, so bring it into view (minimally — 'nearest'
+// is a no-op when it is already visible)
+watch(selected, async (s) => {
+  if (!s) return
+  await nextTick()
+  panelEl.value?.$el?.scrollIntoView({
+    behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)')
+      .matches ? 'auto' : 'smooth',
+    block: 'nearest',
+  })
+})
 
 const key = (pe, pn) => `${pe},${pn}`
 const selKey = computed(() =>
@@ -377,32 +391,9 @@ onMounted(async () => {
 
 <template>
   <div class="wrap">
-    <IntroHeader v-model:name="name" />
+    <IntroHeader />
 
     <main>
-    <ScoreBar
-      :mission="mission"
-      :has-acts="mine.length > 0 || myJoins.length > 0"
-      :my-flipped-m2="myFlipped.length * 100"
-      :my-pledged-m2="myPledges.length * 100"
-      :my-night-m-c="myNightMC"
-      :my-joins="myJoins.length"
-      :my-block-m-c="myBlockMC"
-      :opened="opened"
-      :my-rank="myRank"
-      :flipped-m2="flippedM2"
-      :pledged-m2="pledgedM2"
-      :candidate-count="candidateCount"
-      :opened-label="lastOpened !== null
-        ? (lastOpened
-          ? `+${lastOpened} new candidates opened`
-          : 'no new candidates opened')
-        : null"
-      :night-avg="nightAvg"
-      :night-spread="nightSpread"
-      :night-m-c="nightMC"
-      @mission="onMission"
-    />
     <p v-if="error" class="error" role="alert">{{ error }}</p>
 
     <MapControls
@@ -428,6 +419,8 @@ onMounted(async () => {
 
     <PixelPanel
       v-if="selected"
+      ref="panelEl"
+      v-model:name="name"
       :pixel="selected"
       :value="selValue"
       :claim="claimAt.get(selKey) ?? null"
@@ -450,6 +443,31 @@ onMounted(async () => {
       @join="joinBlock"
       @leave="leaveBlock"
     />
+
+    <ScoreBar
+      :mission="mission"
+      :has-acts="mine.length > 0 || myJoins.length > 0"
+      :my-flipped-m2="myFlipped.length * 100"
+      :my-pledged-m2="myPledges.length * 100"
+      :my-night-m-c="myNightMC"
+      :my-joins="myJoins.length"
+      :my-block-m-c="myBlockMC"
+      :opened="opened"
+      :my-rank="myRank"
+      :flipped-m2="flippedM2"
+      :pledged-m2="pledgedM2"
+      :candidate-count="candidateCount"
+      :opened-label="lastOpened !== null
+        ? (lastOpened
+          ? `+${lastOpened} new candidates opened`
+          : 'no new candidates opened')
+        : null"
+      :night-avg="nightAvg"
+      :night-spread="nightSpread"
+      :night-m-c="nightMC"
+      @mission="onMission"
+    />
+
     <Leaderboard :rows="leaders" />
 
     <Learn />
