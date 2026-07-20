@@ -11,8 +11,10 @@ the score, satellite LST is the honesty check.
 
 > Renamed from **Tilewhip** 2026-07-20: the old name described one
 > mechanic (tile-flipping, after NK Tegelwippen); the intent outgrew it —
-> depaving is one lever, not the game. Repo/module/URL rename is a
-> pending mechanical pass; docs lead.
+> depaving is one lever, not the game. Repo:
+> [github.com/thdelmas/climateumbral](https://github.com/thdelmas/climateumbral)
+> (old URLs redirect). The Go module path keeps the old name until the
+> next server refactor.
 
 ## Why
 
