@@ -60,3 +60,10 @@ number.
 **Three layers, one threshold:** survive tonight (shelters) · cool
 tomorrow (acts) · govern the gap (petitions + V5 audit). Features that
 don't serve one of the three layers don't enter.
+
+**Scope — amended 2026-07-20:** Europe-first is a data subsidy, not a
+ceiling. The EEA streams 10 m sealed-% pixels for free — that service
+is what makes zero-infra solo hosting possible, and it ends at
+Europe's edge. Going global needs a funded tile layer (GHSL/GAIA) and
+per-region grids; already world-capable: the heat physics, the LST
+audit, the game design, the ledger. Home: **climateumbral.eu**.
