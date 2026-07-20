@@ -171,8 +171,11 @@
       <ul>
         <li><b>Blue pins</b> — official climate shelters: real
           rooms with addresses and hours, a promise by a named city
-          (Barcelona's <em>Xarxa de refugis climàtics</em> first;
-          more city adapters welcome). Check hours before you
+          (Barcelona, Paris, Vienna and Grand Lyon so far; city
+          official? <a
+            href="https://github.com/thdelmas/climateumbral/blob/main/docs/FOR_CITIES.md"
+            target="_blank" rel="noopener">here's how to add
+          yours</a>). Check hours before you
           go.</li>
         <li><b>Deep-green pins</b> (heat views) — modeled cool
           islands: the green blocks the night model reads as

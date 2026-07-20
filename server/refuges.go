@@ -13,6 +13,7 @@ package main
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -50,12 +51,52 @@ const bcnRefugesCSV = "https://opendata-ajuntament.barcelona.cat" +
 	"/data/dataset/8f9da263-ff41-4765-ab0d-61b97d7a00b2" +
 	"/resource/7ecae024-6cb2-427d-b2d0-e170500e2a38/download"
 
+// Îlots de fraîcheur, équipements & activités — Ville de Paris,
+// ODbL, refreshed daily upstream. The JSON export (~400 KB); the
+// records API pages at 100 rows.
+const parisRefugesJSON = "https://opendata.paris.fr" +
+	"/api/explore/v2.1/catalog/datasets" +
+	"/ilots-de-fraicheur-equipements-activites/exports/json"
+
+// Coole Zonen — Stadt Wien, CC BY 4.0. The city WFS serves local
+// Gauß-Krüger coordinates unless EPSG:4326 is asked for by name.
+const wienRefugesWFS = "https://data.wien.gv.at/daten/geo" +
+	"?service=WFS&version=1.1.0&request=GetFeature" +
+	"&typeName=ogdwien:COOLEZONEOGD" +
+	"&outputFormat=json&srsName=EPSG:4326"
+
+// Équipements publics climatisés — Métropole de Lyon, Licence
+// Ouverte. The WFS layer behind the metropole's cool-places map.
+const lyonRefugesWFS = "https://download.data.grandlyon.com" +
+	"/wfs/grandlyon?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature" +
+	"&typename=metropole-de-lyon:" +
+	"com_donnees_communales.equipementspublicsclimatises" +
+	"&outputFormat=application/json&SRSNAME=EPSG:4326"
+
 var refugeSources = []refugeSource{{
 	ID:          "bcn",
 	Name:        "Barcelona — Xarxa de refugis climàtics",
 	Attribution: "Ajuntament de Barcelona, Open Data BCN (CC BY 4.0)",
 	URL:         bcnRefugesCSV,
 	parse:       parseBCNRefuges,
+}, {
+	ID:          "paris",
+	Name:        "Paris — Îlots de fraîcheur (équipements)",
+	Attribution: "Ville de Paris, Paris Data (ODbL)",
+	URL:         parisRefugesJSON,
+	parse:       parseParisRefuges,
+}, {
+	ID:          "wien",
+	Name:        "Vienna — Coole Zonen",
+	Attribution: "Stadt Wien, data.wien.gv.at (CC BY 4.0)",
+	URL:         wienRefugesWFS,
+	parse:       parseWienRefuges,
+}, {
+	ID:          "lyon",
+	Name:        "Grand Lyon — Équipements publics climatisés",
+	Attribution: "Métropole de Lyon, data.grandlyon.com (Licence Ouverte)",
+	URL:         lyonRefugesWFS,
+	parse:       parseLyonRefuges,
 }}
 
 const (
@@ -227,6 +268,238 @@ func parseBCNRefuges(raw []byte) ([]refuge, error) {
 	}
 	if len(out) == 0 {
 		return nil, errors.New("bcn refuges: no rows parsed")
+	}
+	return out, nil
+}
+
+// parisIndoorTypes: the tier promise is a ROOM — roof, cool air. The
+// Paris feed mixes those with outdoor street furniture (misters,
+// shade sails, pétanque grounds), which belongs to the modeled
+// cool-island tier, not here. Whitelist, not blacklist: a type the
+// city invents next summer stays off the map until a human reads
+// what it is.
+var parisIndoorTypes = map[string]bool{
+	"Bibliothèque":            true,
+	"Musée":                   true,
+	"Mairie d'arrondissement": true, // hosts the plan-canicule cooled rooms
+	"Lieux de culte":          true,
+	"Bains-douches":           true,
+	"Piscine":                 true,
+}
+
+// parseParisRefuges reads the Paris Data JSON export. Traps (live in
+// the real feed): indoor and outdoor site types share one dataset —
+// filter by type or a mister pin masquerades as a shelter; a couple
+// of identifiants are duplicated; addresses carry doubled spaces;
+// paris.fr venue pages need a slug we don't have, so pins get no web
+// link. Museums and pools can charge — the addr says so, because a
+// paywall at the door is part of whether a body gets cooled.
+func parseParisRefuges(raw []byte) ([]refuge, error) {
+	var rows []struct {
+		ID     string `json:"identifiant"`
+		Name   string `json:"nom"`
+		Type   string `json:"type"`
+		Paying string `json:"payant"`
+		Addr   string `json:"adresse"`
+		Arr    string `json:"arrondissement"`
+		Geo    *struct {
+			Lon float64 `json:"lon"`
+			Lat float64 `json:"lat"`
+		} `json:"geo_point_2d"`
+	}
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		return nil, fmt.Errorf("paris refuges: %w", err)
+	}
+	seen := map[string]bool{}
+	out := []refuge{}
+	for _, r := range rows {
+		if r.ID == "" || seen[r.ID] || r.Name == "" ||
+			r.Geo == nil || !parisIndoorTypes[r.Type] {
+			continue
+		}
+		seen[r.ID] = true
+		addr := strings.Join(strings.Fields(r.Addr), " ")
+		if r.Arr != "" {
+			if addr != "" {
+				addr += " · "
+			}
+			addr += r.Arr
+		}
+		if r.Paying == "Oui" {
+			addr += " · entrée payante"
+		}
+		out = append(out, refuge{
+			Lon: r.Geo.Lon, Lat: r.Geo.Lat, Name: r.Name,
+			Addr: addr, Src: "paris",
+		})
+	}
+	if len(out) == 0 {
+		return nil, errors.New("paris refuges: no rows parsed")
+	}
+	return out, nil
+}
+
+// geojsonFC is the shared shape of the WFS GeoJSON feeds (Vienna,
+// Lyon): point features carrying a per-city property bag.
+type geojsonFC struct {
+	Features []struct {
+		Geometry struct {
+			Type        string    `json:"type"`
+			Coordinates []float64 `json:"coordinates"`
+		} `json:"geometry"`
+		Properties json.RawMessage `json:"properties"`
+	} `json:"features"`
+}
+
+// inBounds guards against the classic WFS axis-order flip: asking a
+// 1.1.0 server for EPSG:4326 is exactly where lon/lat swaps happen,
+// and a swapped feed would silently pin every shelter in the wrong
+// hemisphere. A city's refuges outside its own loose bounding box
+// must fail loudly so the client serves stale truth instead.
+func inBounds(lon, lat, lonMin, lonMax, latMin, latMax float64) bool {
+	return lon >= lonMin && lon <= lonMax &&
+		lat >= latMin && lat <= latMax
+}
+
+// parseWienRefuges reads the Coole Zonen WFS layer: free indoor cool
+// rooms (20–24 °C), every feature belongs to the tier — no type
+// filter needed. Traps: the server answers in Gauß-Krüger unless
+// srsName=EPSG:4326 is in the URL, and WEBLINK1 carries a trailing
+// newline in the live feed.
+func parseWienRefuges(raw []byte) ([]refuge, error) {
+	var fc geojsonFC
+	if err := json.Unmarshal(raw, &fc); err != nil {
+		return nil, fmt.Errorf("wien refuges: %w", err)
+	}
+	seen := map[int64]bool{}
+	out := []refuge{}
+	for _, f := range fc.Features {
+		var p struct {
+			ID    int64  `json:"OBJECTID"`
+			Name  string `json:"BEZEICHNUNG"`
+			Addr  string `json:"ADRESSE"`
+			Hours string `json:"OEFFNUNGSZEIT"`
+			Web   string `json:"WEBLINK1"`
+		}
+		if err := json.Unmarshal(f.Properties, &p); err != nil {
+			continue
+		}
+		if f.Geometry.Type != "Point" ||
+			len(f.Geometry.Coordinates) < 2 ||
+			p.ID == 0 || seen[p.ID] || p.Name == "" {
+			continue
+		}
+		lon, lat := f.Geometry.Coordinates[0], f.Geometry.Coordinates[1]
+		if !inBounds(lon, lat, 16.0, 16.7, 48.0, 48.4) {
+			return nil, fmt.Errorf(
+				"wien refuges: %.2f,%.2f outside Vienna — axis flip "+
+					"or wrong CRS upstream", lon, lat)
+		}
+		seen[p.ID] = true
+		addr := strings.Join(strings.Fields(p.Addr), " ")
+		if h := strings.TrimSpace(p.Hours); h != "" {
+			if addr != "" {
+				addr += " · "
+			}
+			addr += h
+		}
+		web := strings.TrimSpace(p.Web)
+		if !strings.HasPrefix(web, "http") {
+			web = ""
+		}
+		out = append(out, refuge{
+			Lon: lon, Lat: lat, Name: p.Name, Addr: addr,
+			Web: web, Src: "wien",
+		})
+	}
+	if len(out) == 0 {
+		return nil, errors.New("wien refuges: no rows parsed")
+	}
+	return out, nil
+}
+
+// Lyon's dataset is already curated as cooled public facilities, but
+// a handful of outdoor sites ride along (parks, an open-air sports
+// complex, a cemetery) and a third of the rows carry no `type` at
+// all — those are churches, libraries and covered market halls,
+// recognizable by `theme`. Same whitelist discipline as Paris: an
+// unrecognized type or theme defaults out until a human reads it.
+var lyonIndoorTypes = map[string]bool{
+	"Bassin de natation":                       true,
+	"Bibliothèque":                             true,
+	"Centre social":                            true,
+	"Eglise catholique":                        true,
+	"Equipement pour personnes âgées":          true,
+	"Hôtel de ville ; Mairie":                  true,
+	"Musée":                                    true,
+	"Médiathèque":                              true,
+	"Résidence service":                        true,
+	"Site d'activités aquatiques et nautiques": true,
+}
+
+var lyonIndoorThemes = map[string]bool{ // only for untyped rows
+	"Equipement cultuel":            true,
+	"Equipement culturel":           true,
+	"Autre service à la population": true, // covered market halls, malls
+}
+
+// parseLyonRefuges reads the Grand Lyon WFS layer. Traps: `uid` is
+// null on 80 of 90 live rows (only one commune fills it) — the row
+// identity is `gid`; addresses end in a literal \r in the live feed;
+// the `climatise` flag is false even for sites the comment calls
+// cooled, so it must not be used as the filter — type/theme is.
+func parseLyonRefuges(raw []byte) ([]refuge, error) {
+	var fc geojsonFC
+	if err := json.Unmarshal(raw, &fc); err != nil {
+		return nil, fmt.Errorf("lyon refuges: %w", err)
+	}
+	seen := map[int64]bool{}
+	out := []refuge{}
+	for _, f := range fc.Features {
+		var p struct {
+			GID     int64  `json:"gid"`
+			Theme   string `json:"theme"`
+			Type    string `json:"type"`
+			Name    string `json:"nom"`
+			Addr    string `json:"adresse"`
+			Commune string `json:"commune"`
+			Web     string `json:"web"`
+		}
+		if err := json.Unmarshal(f.Properties, &p); err != nil {
+			continue
+		}
+		indoor := lyonIndoorTypes[p.Type] ||
+			(p.Type == "" && lyonIndoorThemes[p.Theme])
+		if f.Geometry.Type != "Point" ||
+			len(f.Geometry.Coordinates) < 2 ||
+			p.GID == 0 || seen[p.GID] || p.Name == "" || !indoor {
+			continue
+		}
+		lon, lat := f.Geometry.Coordinates[0], f.Geometry.Coordinates[1]
+		if !inBounds(lon, lat, 4.4, 5.3, 45.4, 46.0) {
+			return nil, fmt.Errorf(
+				"lyon refuges: %.2f,%.2f outside Grand Lyon — axis "+
+					"flip or wrong CRS upstream", lon, lat)
+		}
+		seen[p.GID] = true
+		addr := strings.Join(strings.Fields(p.Addr), " ")
+		if p.Commune != "" {
+			if addr != "" {
+				addr += " · "
+			}
+			addr += p.Commune
+		}
+		web := strings.TrimSpace(p.Web)
+		if !strings.HasPrefix(web, "http") {
+			web = ""
+		}
+		out = append(out, refuge{
+			Lon: lon, Lat: lat, Name: p.Name, Addr: addr,
+			Web: web, Src: "lyon",
+		})
+	}
+	if len(out) == 0 {
+		return nil, errors.New("lyon refuges: no rows parsed")
 	}
 	return out, nil
 }

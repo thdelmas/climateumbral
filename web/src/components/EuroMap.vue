@@ -416,7 +416,7 @@ function shelterTonight() {
     hint.value = refugeSources === null
       ? 'shelter data unavailable right now — try again in a minute'
       : 'no shelter network published here yet — ' +
-        'Barcelona is the first adapter; more cities welcome'
+        'Barcelona, Paris, Vienna and Lyon so far; more cities welcome'
     return
   }
   const c = map.getCenter()

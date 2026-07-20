@@ -131,6 +131,11 @@ python3 tools/fetch_grid.py 2.14 41.375 2.19 41.41 -o bcn
 See `docs/GAME_DESIGN.md` for incentive design and
 `docs/DATA_SOURCES.md` for verified endpoints and their traps.
 
+**Cities**: official climate-shelter networks are integrated one
+municipal open dataset at a time (Barcelona, Paris, Vienna and Grand
+Lyon so far). If you represent a city and want yours on the map,
+`docs/FOR_CITIES.md` says exactly what to publish and how to reach us.
+
 ## License
 
 Apache-2.0. Data: © European Union, Copernicus Land Monitoring Service
