@@ -38,6 +38,7 @@ type coolPlace struct {
 // stale-serving is the difference between "degraded" and "down".
 var overpassHosts = []string{
 	"https://overpass-api.de/api/interpreter",
+	"https://overpass.openstreetmap.fr/api/interpreter",
 	"https://lz4.overpass-api.de/api/interpreter",
 	"https://overpass.kumi.systems/api/interpreter",
 	"https://overpass.private.coffee/api/interpreter",
@@ -129,11 +130,17 @@ func (c *coolPlacesClient) get(lon, lat float64) ([]coolPlace, error) {
 }
 
 func (c *coolPlacesClient) fetch(lon, lat float64) ([]coolPlace, error) {
-	q := fmt.Sprintf(`[out:json][timeout:8];(`+
-		`nwr["air_conditioning"="yes"]["name"](around:%d,%f,%f);`+
-		`nwr["shop"="mall"]["name"](around:%d,%f,%f);`+
+	// A global [bbox:...] prefilter, NOT (around:...): around on a
+	// planet-wide tag forces a tag-first scan that timed out on
+	// every instance (32 s and dead); the same search bbox-first
+	// answered in 2 s. Verified live on a loaded instance.
+	dLat := coolRadiusM / 111320.0
+	dLon := dLat / math.Cos(lat*math.Pi/180)
+	q := fmt.Sprintf(`[out:json][timeout:8][bbox:%f,%f,%f,%f];(`+
+		`nwr["air_conditioning"="yes"]["name"];`+
+		`nwr["shop"="mall"]["name"];`+
 		`);out center 80;`,
-		coolRadiusM, lat, lon, coolRadiusM, lat, lon)
+		lat-dLat, lon-dLon, lat+dLat, lon+dLon)
 	// One overall deadline across every instance: a panicking phone
 	// is waiting on this response, and four hung mirrors must cost
 	// seconds, not two minutes. (Observed live: 4×25 s of hangs.)
