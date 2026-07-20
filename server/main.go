@@ -1,4 +1,4 @@
-// Tilewhip API, V3: the whole of Europe is the board.
+// ClimateUmbral API, V3: the whole of Europe is the board.
 //
 // There is no local grid anymore. The visual map streams straight
 // from the EEA image service; this server owns the game: viewport
@@ -36,7 +36,7 @@ const (
 	maxJoins         = 50_000
 	maxJoinsPerBlock = 200
 
-	tokenHeader = "X-Tilewhip-Token"
+	tokenHeader = "X-ClimateUmbral-Token"
 )
 
 type server struct {

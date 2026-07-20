@@ -1,5 +1,5 @@
 // Client for the EEA Copernicus imperviousness image service — the
-// only upstream Tilewhip has. Values: 0-100 = % sealed, 255 = nodata.
+// only upstream ClimateUmbral has. Values: 0-100 = % sealed, 255 = nodata.
 // Free, keyless, but external: every game-critical read is either
 // tiny (a 3x3 neighbourhood per pledge) or cached (viewport rasters),
 // and concurrent misses for the same key share one upstream fetch.

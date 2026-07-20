@@ -18,7 +18,7 @@ import (
 )
 
 const overpassURL = "https://overpass-api.de/api/interpreter"
-const overpassUA = "Tilewhip/0.1 (+https://github.com/thdelmas/Tilewhip)"
+const overpassUA = "ClimateUmbral/0.1 (+https://github.com/thdelmas/climateumbral)"
 
 // anchorWeights: rough human-hours multipliers. Kids at school beat
 // commuters at a bus stop; both beat an empty lot.

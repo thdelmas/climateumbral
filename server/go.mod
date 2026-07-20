@@ -1,3 +1,3 @@
-module tilewhip/server
+module climateumbral/server
 
 go 1.22

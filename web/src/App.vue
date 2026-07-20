@@ -255,7 +255,7 @@ async function del(path, token) {
   try {
     const res = await fetch(path, {
       method: 'DELETE',
-      headers: { 'X-Tilewhip-Token': token ?? '' },
+      headers: { 'X-ClimateUmbral-Token': token ?? '' },
     })
     if (res.status !== 204) error.value = await errText(res)
     return res

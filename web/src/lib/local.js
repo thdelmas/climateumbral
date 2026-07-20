@@ -1,7 +1,7 @@
 // Local identity: a pseudonym and the bearer tokens for acts made in
 // this browser. Tokens are the only proof of authorship (no accounts),
 // so losing this storage means losing the ability to flip/erase them.
-const KEY = 'tilewhip'
+const KEY = 'tilewhip' // storage key predates the ClimateUmbral rename; changing it orphans stored act tokens
 
 function read() {
   try {

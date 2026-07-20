@@ -4,7 +4,7 @@
 .PHONY: help dev down fetch build run prototype
 
 help:
-	@echo "Tilewhip targets:"
+	@echo "ClimateUmbral targets:"
 	@echo "  make dev        dev stack: Vite (:5173) + Go API (:8080)"
 	@echo "  make down       stop the dev stack"
 	@echo "  make fetch      (analysis) fetch a static grid into data/"
@@ -22,11 +22,11 @@ fetch:
 	docker compose --profile tools run --rm fetch
 
 build:
-	docker build -t tilewhip .
+	docker build -t climateumbral .
 
 run:
 	docker run --rm -p 127.0.0.1:8080:8080 \
-		-v "$(PWD)/data:/data" tilewhip
+		-v "$(PWD)/data:/data" climateumbral
 
 prototype:
 	xdg-open prototype/index.html

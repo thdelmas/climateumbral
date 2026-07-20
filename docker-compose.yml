@@ -10,7 +10,7 @@ services:
       - "127.0.0.1:8080:8080"
     volumes:
       - ./data:/data
-    command: /usr/local/bin/tilewhip-server -addr :8080 -data /data
+    command: /usr/local/bin/climateumbral-server -addr :8080 -data /data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/health"]

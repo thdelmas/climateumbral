@@ -4,7 +4,7 @@ const name = defineModel('name')
 
 <template>
   <header>
-    <h1>Tilewhip</h1>
+    <h1>ClimateUmbral</h1>
     <p class="sub">
       Europe as the satellite sees it — every square a real
       10 × 10 m of ground. Gray is sealed. Green is alive. The game:
