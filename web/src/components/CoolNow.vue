@@ -122,40 +122,65 @@ async function findNear(lon, lat) {
   step.value = 'list'
 }
 
-// First tap must never waste itself: a fast POSITION_UNAVAILABLE
-// (location service still waking up, cold fix) gets one silent
-// harder retry before the user sees anything. Only a real
-// permission denial gets the "blocked" message.
-function locate(highAcc, onFail) {
-  navigator.geolocation.getCurrentPosition(
-    (pos) => findNear(pos.coords.longitude, pos.coords.latitude),
-    onFail,
-    {
-      enableHighAccuracy: highAcc,
-      timeout: highAcc ? 25000 : 10000,
-      maximumAge: highAcc ? 0 : 300000,
-    },
-  )
+// One tap must be enough — even on an Android where that tap has to
+// walk through the site-permission prompt, then the OS "turn on
+// device location" dialog, then a cold GPS fix. Discrete
+// getCurrentPosition calls die at each of those steps (each error
+// fired before the user finished the dialog — seen on a real
+// phone). watchPosition instead keeps the attempt ALIVE across the
+// dialogs and the warm-up: transient errors are ignored, the first
+// fix wins, and only a real denial or the overall deadline ends it.
+// The city buttons stay on screen the whole time as the bail-out.
+let watchId = null
+let watchTimer = 0
+function stopWatch() {
+  if (watchId !== null) navigator.geolocation.clearWatch(watchId)
+  watchId = null
+  clearTimeout(watchTimer)
 }
 
-function useMyLocation() {
+async function useMyLocation() {
   note.value = ''
   if (!navigator.geolocation) {
     note.value = t.value.locFail
     return
   }
+  let perm = 'prompt'
+  try {
+    perm = (await navigator.permissions.query(
+      { name: 'geolocation' })).state
+  } catch { /* Safari < 16: no query — just try */ }
+  if (perm === 'denied') {
+    note.value = t.value.locDenied
+    return
+  }
   step.value = 'locating'
-  locate(false, (err) => {
-    if (err.code === 1) { // PERMISSION_DENIED
-      step.value = 'start'
-      note.value = t.value.locDenied
-      return
-    }
-    locate(true, () => {
-      step.value = 'start'
-      note.value = t.value.locFail
-    })
-  })
+  stopWatch()
+  // granted: only GPS warm-up to wait for. prompt: the user may
+  // spend most of a minute inside two dialogs first.
+  const deadline = perm === 'granted' ? 20000 : 60000
+  watchId = navigator.geolocation.watchPosition(
+    (pos) => {
+      stopWatch()
+      findNear(pos.coords.longitude, pos.coords.latitude)
+    },
+    (err) => {
+      if (err.code === 1) { // PERMISSION_DENIED is final
+        stopWatch()
+        step.value = 'start'
+        note.value = t.value.locDenied
+      }
+      // code 2/3 are transient while dialogs resolve and GPS
+      // warms — the watch keeps trying until the deadline
+    },
+    { enableHighAccuracy: true, timeout: deadline, maximumAge: 60000 },
+  )
+  watchTimer = setTimeout(() => {
+    if (watchId === null) return
+    stopWatch()
+    step.value = 'start'
+    note.value = t.value.locFail
+  }, deadline)
 }
 
 // Walking directions in whatever maps app the phone owns. Only the
@@ -172,6 +197,7 @@ onMounted(() => {
   document.documentElement.style.overflow = 'hidden'
 })
 onUnmounted(() => {
+  stopWatch() // no orphan GPS tracking after the screen closes
   document.documentElement.style.overflow = ''
 })
 </script>
