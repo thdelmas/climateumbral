@@ -379,6 +379,7 @@ onMounted(async () => {
   <div class="wrap">
     <IntroHeader v-model:name="name" />
 
+    <main>
     <ScoreBar
       :mission="mission"
       :has-acts="mine.length > 0 || myJoins.length > 0"
@@ -402,7 +403,7 @@ onMounted(async () => {
       :night-m-c="nightMC"
       @mission="onMission"
     />
-    <p v-if="error" class="error">{{ error }}</p>
+    <p v-if="error" class="error" role="alert">{{ error }}</p>
 
     <MapControls
       :mode="mode"
@@ -452,6 +453,7 @@ onMounted(async () => {
     <Leaderboard :rows="leaders" />
 
     <Learn />
+    </main>
 
     <footer>
       <p>
@@ -472,10 +474,11 @@ onMounted(async () => {
 .wrap {
   max-width: 720px;
   margin: 0 auto;
-  padding: clamp(16px, 4vw, 48px) clamp(12px, 4vw, 40px) 80px;
+  padding: clamp(16px, 4vw, 48px) clamp(12px, 4vw, 40px)
+    calc(64px + env(safe-area-inset-bottom, 0px));
 }
 .error {
-  color: #b3423a;
+  color: var(--err);
   margin-bottom: 10px;
   font-size: 14px;
 }

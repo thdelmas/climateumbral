@@ -8,13 +8,14 @@ defineProps({ rows: Array })
     <p v-if="!rows.length" class="note">
       No acts on the ledger yet — the first flipped m² makes history.
     </p>
-    <table v-if="rows.length">
+    <div v-if="rows.length" class="scroll">
+    <table>
       <thead>
         <tr>
-          <th>who</th>
-          <th>blocks Δ</th>
-          <th>own acts</th>
-          <th>done</th>
+          <th scope="col">who</th>
+          <th scope="col">blocks Δ</th>
+          <th scope="col">own acts</th>
+          <th scope="col">done</th>
         </tr>
       </thead>
       <tbody>
@@ -34,6 +35,7 @@ defineProps({ rows: Array })
         </tr>
       </tbody>
     </table>
+    </div>
     <p v-if="rows.length" class="note">
       Blocks Δ = average modeled night cooling of the blocks you
       petitioned, counted from the day you signed — everyone's acts
@@ -54,11 +56,25 @@ h2 {
   font-weight: 700;
   margin-bottom: 10px;
 }
+/* narrow screens scroll the table inside its own box — the page
+   never scrolls sideways */
+.scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
 table {
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
   font-variant-numeric: tabular-nums;
+}
+td,
+th {
+  white-space: nowrap;
+}
+td:first-child {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 th,
 td {
@@ -76,7 +92,7 @@ th:not(:first-child) {
   text-align: right;
 }
 .cool {
-  color: #4e8fbf;
+  color: var(--cool);
   font-weight: 600;
 }
 .note {

@@ -1,23 +1,34 @@
 /* Same palette as prototype/index.html — tile colors encode land
-   cover, not UI. */
+   cover, not UI. Every text color here clears WCAG AA (>=4.5:1) on
+   the surface it sits on, both themes — checked, not eyeballed. */
 :root {
   --bg: #f4f6f2;
   --ink: #232a26;
   --ink-2: #5a655e;
-  --ink-3: #8a948d;
+  --ink-3: #667069;
   --line: #d8ded8;
   --card: #fbfcfa;
   --accent: #2e6b3e;
+  --warm: #94690a; /* pledged amber, as text */
+  --ember: #a34a1e; /* heat degrees, as text */
+  --cool: #3673a3; /* cooling numbers, as text */
+  --err: #b3423a;
+  color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #171b18;
     --ink: #e6ebe6;
     --ink-2: #a7b1a9;
-    --ink-3: #6f7a72;
+    --ink-3: #8a958d;
     --line: #2e352f;
     --card: #1e231f;
     --accent: #7fb98a;
+    --warm: #d9a542;
+    --ember: #e08a56;
+    --cool: #7db3dd;
+    --err: #e08078;
+    color-scheme: dark;
   }
 }
 
@@ -31,4 +42,29 @@ body {
   color: var(--ink);
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   line-height: 1.55;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Keyboard users get the same map everyone else gets. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Touch: WCAG target size + no iOS focus-zoom (16 px inputs).
+   MapLibre's own controls keep their compact size. */
+@media (pointer: coarse) {
+  #app button:not([class*='maplibregl']) {
+    min-height: 44px;
+  }
+  #app input {
+    font-size: 16px;
+    min-height: 44px;
+  }
 }

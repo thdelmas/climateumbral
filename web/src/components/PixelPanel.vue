@@ -181,8 +181,10 @@ async function copyLink() {
       <template v-if="claim?.status === 'pledged' && myClaimToken">
         <input
           v-model="photo"
+          type="url"
+          inputmode="url"
+          aria-label="photo URL, optional proof"
           placeholder="photo URL (optional proof)"
-          size="24"
         />
         <button @click="emit('flip', photo)">mark it done</button>
         <button class="quiet" @click="emit('abandon')">
@@ -246,10 +248,10 @@ async function copyLink() {
   font-weight: 600;
 }
 .heat b {
-  color: #c25c2a;
+  color: var(--ember);
 }
 .pledged {
-  color: #b3831a;
+  color: var(--warm);
   font-weight: 600;
 }
 .flipped {
@@ -284,5 +286,8 @@ input {
   border: 1px solid var(--line);
   background: var(--bg);
   color: var(--ink);
+  flex: 1 1 180px;
+  min-width: 0;
+  max-width: 100%;
 }
 </style>

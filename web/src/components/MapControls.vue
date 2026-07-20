@@ -12,7 +12,7 @@ const labels = { land: 'map', day: 'day °C', night: 'night °C' }
     <button class="shelter" @click="emit('shelter')">
       → nearest shelter
     </button>
-    <span class="seg">
+    <span class="seg" role="group" aria-label="map view">
       <button
         v-for="(label, m) in labels"
         :key="m"

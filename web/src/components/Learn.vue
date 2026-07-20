@@ -243,6 +243,13 @@
 <style scoped>
 .learn {
   margin-top: 32px;
+  scroll-margin-top: 12px;
+}
+/* touch: the whole summary line is comfortably tappable */
+@media (pointer: coarse) {
+  summary {
+    padding: 8px 0;
+  }
 }
 h2 {
   font-size: 18px;

@@ -42,6 +42,20 @@ const emit = defineEmits(['select', 'raster', 'refuges'])
 
 const PLAY_ZOOM = 13.2
 
+// vestibular safety: continent-crossing camera flights become jumps
+// for users who asked the OS for reduced motion
+const REDUCED_MOTION =
+  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ??
+  false
+
+function glide(opts) {
+  if (REDUCED_MOTION) {
+    map.jumpTo({ center: opts.center, zoom: opts.zoom })
+  } else {
+    map.flyTo(opts)
+  }
+}
+
 const el = ref(null)
 const tip = ref({ show: false, x: 0, y: 0, text: '' })
 const hint = ref('zoom into a city to load the front line')
@@ -291,14 +305,14 @@ async function frontline() {
   }
   hint.value = 'no front line nearby — flying to the seed city'
   pendingFrontline = true
-  map.flyTo({ center: [2.165, 41.39], zoom: 15.5, speed: 2.4 })
+  glide({ center: [2.165, 41.39], zoom: 15.5, speed: 2.4 })
 }
 
 function pickAndGo() {
   const i = pickByExposure(raster, [...raster.cands])
   const pe = raster.pe0 + (i % raster.W)
   const pn = raster.pn0 + (raster.H - 1 - Math.floor(i / raster.W))
-  map.flyTo({ center: pixelCenter(pe, pn), zoom: 16.5, speed: 2.4 })
+  glide({ center: pixelCenter(pe, pn), zoom: 16.5, speed: 2.4 })
   emit('select', { pe, pn })
 }
 
@@ -328,7 +342,7 @@ function shelterTonight() {
   }
   const c = map.getCenter()
   const best = nearestRefuge(refugeList, [c.lng, c.lat])
-  map.flyTo({ center: [best.lon, best.lat], zoom: 15.5, speed: 2.4 })
+  glide({ center: [best.lon, best.lat], zoom: 15.5, speed: 2.4 })
   openRefugePopup(map, {
     properties: {
       name: best.name, addr: best.addr ?? '', web: best.web ?? '',
@@ -388,10 +402,12 @@ onMounted(() => {
     // refuge pins show at any zoom, well before the game raster
     const pin = pinAt(map, e.point)
     if (pin?.layer.id === 'refuge-clusters') {
-      map.easeTo({
+      const to = {
         center: pin.geometry.coordinates,
         zoom: map.getZoom() + 2.5,
-      })
+      }
+      if (REDUCED_MOTION) map.jumpTo(to)
+      else map.easeTo(to)
       return
     }
     if (pin?.layer.id === 'refuges') {
@@ -471,16 +487,25 @@ defineExpose({ frontline, goTo, shelterTonight })
 
 <template>
   <div class="euromap">
-    <div ref="el" class="map" />
+    <div
+      ref="el"
+      class="map"
+      role="region"
+      aria-label="map of Europe — sealed ground, heat views, and
+        cooling acts"
+    />
     <div
       v-if="tip.show"
       class="tooltip"
+      aria-hidden="true"
       :style="{ left: tip.x + 'px', top: tip.y + 'px' }"
     >
       {{ tip.text }}
     </div>
-    <div v-if="loading" class="loading">loading the front line…</div>
-    <p class="hint">
+    <div v-if="loading" class="loading" role="status">
+      loading the front line…
+    </div>
+    <p class="hint" aria-live="polite">
       {{ loading ? 'loading the front line…' : hint }}
     </p>
   </div>
@@ -492,7 +517,11 @@ defineExpose({ frontline, goTo, shelterTonight })
 }
 .map {
   width: 100%;
+  /* svh: stable under mobile browser chrome; vh line is the
+     fallback for engines without it */
   height: min(72vh, 640px);
+  height: min(72svh, 640px);
+  min-height: 320px;
   border-radius: 6px;
   border: 1px solid var(--line);
   overflow: hidden;
