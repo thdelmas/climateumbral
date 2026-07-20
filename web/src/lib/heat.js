@@ -18,6 +18,8 @@
 // against real LST (Sentinel-3 / MODIS, day and night passes)
 // replaces them in v1. Flipped pixels count as unsealed, so every
 // flip cools its block in the model.
+import { GREEN_MAX, HARD_SEALED } from './grid.js'
+
 export const DAY_COEF = 6
 export const NIGHT_COEF = 4
 // Day and night have different spatial structure, not just different
@@ -93,6 +95,30 @@ export function sealedStats(grid, w, h, acts) {
     }
   }
   return { Sday, Snight, C }
+}
+
+// greenSealedSpread: how much hotter the hard-sealed ground in view
+// runs than the green ground, in modeled °C — the overlap of the
+// land map and the heat map expressed as one felt number. Means over
+// both classes, so single lying pixels wash out. 0 when the view
+// lacks one of the two classes.
+export function greenSealedSpread(g, S, coef) {
+  let greenSum = 0
+  let greenN = 0
+  let sealedSum = 0
+  let sealedN = 0
+  for (let i = 0; i < g.length; i++) {
+    if (S[i] < 0) continue
+    if (g[i] <= GREEN_MAX) {
+      greenSum += S[i]
+      greenN++
+    } else if (g[i] >= HARD_SEALED && g[i] <= 100) {
+      sealedSum += S[i]
+      sealedN++
+    }
+  }
+  if (!greenN || !sealedN) return 0
+  return coef * (sealedSum / sealedN - greenSum / greenN)
 }
 
 // meanPenalty: average modeled penalty over land pixels, in °C.

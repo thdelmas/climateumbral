@@ -14,6 +14,7 @@ defineProps({
   candidateCount: Number,
   openedLabel: String, // null until the first pledge of the session
   nightAvg: Number, // modeled mean night heat penalty, °C
+  nightSpread: Number, // sealed-vs-green night gap in view, °C
   nightMC: Number, // everyone's modeled night cooling, milli-degC
 })
 const emit = defineEmits(['mission'])
@@ -78,6 +79,11 @@ const emit = defineEmits(['mission'])
     <span v-if="nightAvg">
       <strong>+{{ nightAvg.toFixed(2) }}</strong> °C avg night heat
       penalty in view (modeled)
+    </span>
+    <span v-if="nightSpread >= 0.3" class="spread">
+      sealed ground here runs
+      <strong>+{{ nightSpread.toFixed(1) }}</strong> °C hotter at
+      night than green ground (modeled)
     </span>
     <span v-if="openedLabel" class="opened">{{ openedLabel }}</span>
   </div>

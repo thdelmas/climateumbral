@@ -101,7 +101,11 @@ server validates every pledge against the same upstream pixels. Water
 (50 m surface window vs 150 m banked-heat window). The ledger streams
 live (SSE); mutation endpoints are rate-limited per IP. Permalink any
 square on the continent (`#pe,pn`); the ledger shows flipped and
-pledged m² in separate columns, always.
+pledged m² in separate columns, always. An in-app **understand &
+act** layer teaches the why (night heat, the threshold), the levers
+with pros and cons, the legal path, and what to do from any
+situation; the score bar names the green-vs-sealed night gap of
+whatever is in view (modeled).
 
 `prototype/index.html` — the original self-contained page (no build,
 no backend): Earth in 1,000 tiles, a clickable dense-city km², and a

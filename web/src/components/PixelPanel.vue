@@ -162,7 +162,8 @@ async function copyLink() {
       </ul>
       <p>
         Rules are local — your city hall decides. This is education,
-        not legal advice.
+        not legal advice. More in
+        <a href="#learn">understand &amp; act</a> below.
       </p>
     </details>
     <div class="row actions">

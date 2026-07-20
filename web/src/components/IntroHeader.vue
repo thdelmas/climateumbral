@@ -44,6 +44,11 @@ const name = defineModel('name')
       <b>deep-green pins</b> mark modeled cool islands: the green
       blocks the night model says stay coolest.
     </p>
+    <p class="learnlink">
+      New here? <a href="#learn">Understand &amp; act</a> — why
+      nights cook, the levers with their pros and cons, the legal
+      path, and what you can do from your exact situation.
+    </p>
     <label class="who">
       I am
       <input
@@ -91,6 +96,16 @@ h1 {
 }
 .tonight b {
   color: var(--ink);
+}
+.learnlink {
+  margin-top: 12px;
+  font-size: 14px;
+  color: var(--ink-2);
+  max-width: 60ch;
+}
+.learnlink a {
+  color: var(--accent);
+  font-weight: 600;
 }
 .who {
   display: inline-flex;

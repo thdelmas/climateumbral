@@ -8,8 +8,9 @@ import Leaderboard from './components/Leaderboard.vue'
 import ScoreBar from './components/ScoreBar.vue'
 import Legend from './components/Legend.vue'
 import MapControls from './components/MapControls.vue'
-import { meanPenalty, flipsPerDegree, DAY_COEF, NIGHT_COEF }
-  from './lib/heat.js'
+import Learn from './components/Learn.vue'
+import { meanPenalty, greenSealedSpread, flipsPerDegree, DAY_COEF,
+  NIGHT_COEF } from './lib/heat.js'
 import { inEurope } from './lib/proj.js'
 import { nearestAnchor } from './lib/anchors.js'
 import { actNightMC, blockOf, blockKey, blockCoolingSince }
@@ -66,6 +67,14 @@ function setMode(m) {
 const candidateCount = computed(() => raster.value?.cands?.size ?? 0)
 const nightAvg = computed(() =>
   raster.value ? meanPenalty(raster.value.Snight, NIGHT_COEF) : 0,
+)
+// the sensibilization number: the land map and the night map as one
+// felt gap — green ground vs sealed ground in the current view
+const nightSpread = computed(() =>
+  raster.value
+    ? greenSealedSpread(raster.value.g, raster.value.Snight,
+      NIGHT_COEF)
+    : 0,
 )
 const selLocal = computed(() => {
   const r = raster.value
@@ -389,6 +398,7 @@ onMounted(async () => {
           : 'no new candidates opened')
         : null"
       :night-avg="nightAvg"
+      :night-spread="nightSpread"
       :night-m-c="nightMC"
       @mission="onMission"
     />
@@ -440,6 +450,8 @@ onMounted(async () => {
       @leave="leaveBlock"
     />
     <Leaderboard :rows="leaders" />
+
+    <Learn />
 
     <footer>
       <p>
