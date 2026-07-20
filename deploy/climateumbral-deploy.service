@@ -1,0 +1,15 @@
+# Copied to /etc/systemd/system/ at install; ExecStart runs the
+# script from the repo, so script changes deploy themselves — only
+# unit changes need a re-copy.
+[Unit]
+Description=ClimateUmbral auto-deploy (converge on origin/main)
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+# image builds take minutes on a 1 vCPU box; the oneshot default
+# (90 s) would kill them mid-build
+TimeoutStartSec=30min
+EnvironmentFile=-/etc/default/climateumbral
+ExecStart=/opt/climateumbral/deploy/autodeploy.sh

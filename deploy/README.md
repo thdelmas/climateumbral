@@ -37,7 +37,27 @@ outside the containers).
 
 ## Operate
 
-- Update: `cd /opt/climateumbral && git pull && docker compose -f deploy/docker-compose.prod.yml up -d --build`
+- Update: automatic — push or merge to `main` and the box redeploys
+  itself within ~2 minutes (`climateumbral-deploy.timer` runs
+  `deploy/autodeploy.sh`, which fetches, hard-resets to
+  `origin/main` and rebuilds only when it moved). The box is a
+  deploy target: don't hand-edit `/opt/climateumbral`, it loses to
+  main on the next cycle.
+- Deploy now / watch: `systemctl start climateumbral-deploy` ·
+  `journalctl -u climateumbral-deploy -f`
+- Enable auto-deploy on a box that predates it (once):
+
+  ```
+  cd /opt/climateumbral && git pull
+  cp deploy/climateumbral-deploy.service deploy/climateumbral-deploy.timer /etc/systemd/system/
+  systemctl daemon-reload && systemctl enable --now climateumbral-deploy.timer
+  ```
+
+  On the host-nginx variant, first point the script at its compose
+  file: `echo COMPOSE=deploy/docker-compose.ionos.yml > /etc/default/climateumbral`.
+  If the checkout lives elsewhere than `/opt/climateumbral`, adjust
+  `ExecStart` in the service file (and `git config --system --add
+  safe.directory <path>` if the repo owner differs from root).
 - Logs: `docker compose -f deploy/docker-compose.prod.yml logs -f --tail 100`
 - The API runs `-trust-proxy` behind Caddy so per-IP limits see real
   client IPs. Memory caps: api 256 MB, caddy 128 MB.

@@ -16,3 +16,6 @@ runcmd:
   - mkdir -p /opt/climateumbral/data
   - chown -R 1000:1000 /opt/climateumbral/data
   - cd /opt/climateumbral && docker compose -f deploy/docker-compose.prod.yml up -d --build
+  # auto-deploy: the box converges on origin/main every 2 minutes
+  - cp /opt/climateumbral/deploy/climateumbral-deploy.service /opt/climateumbral/deploy/climateumbral-deploy.timer /etc/systemd/system/
+  - systemctl daemon-reload && systemctl enable --now climateumbral-deploy.timer
