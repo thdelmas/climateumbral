@@ -211,3 +211,14 @@ https://download.data.grandlyon.com/wfs/grandlyon?SERVICE=WFS&VERSION=2.0.0&REQU
 - NK Tegelwippen counter (the T1/T3 mechanic in production): nk-tegelwippen.nl
 - ESA WorldCover 10 m (global land cover — the non-EU fallback)
 - GHSL built-up layers (global, coarser — the T4 world view)
+
+### Shelter-adapter leads (2026-07-20)
+
+EXTREMA's partner cities (extrema-global.com) — **Athens, Milan,
+Mallorca, Rotterdam, Greater London** — each maintain a cooling-places
+list to feed that app, so the data exists even where no open dataset
+surfaced yet. When hunting adapter #5+, start by asking these cities
+(via `FOR_CITIES.md`) to publish what they already give EXTREMA.
+Neighbor maps worth studying while at it: Berliner Erfrischungskarte
+(hour-by-hour LIDAR shade — erfrischungskarte.odis-berlin.de) and
+Cool Walks (shade-optimal routing — cool.bcnregional.com).

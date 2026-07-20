@@ -121,10 +121,41 @@ export const RESOURCES = [
     note: 'The EU’s adaptation knowledge base: case studies, ' +
       'city plans and the evidence behind them, searchable.',
   },
+  {
+    kind: 'map',
+    title: 'EXTREMA',
+    source: 'Athens, Paris, Rotterdam, Milan, Mallorca, London',
+    year: 2018,
+    url: 'https://www.extrema-global.com/site-extrema-global/',
+    note: 'A heat-risk app that guides you to the nearest cooling ' +
+      'place, personalized to your health — city by partner city. ' +
+      'If you live in one, install it.',
+  },
+  {
+    kind: 'map',
+    title: 'Berliner Erfrischungskarte',
+    source: 'ODIS / Technologiestiftung Berlin',
+    year: 2021,
+    url: 'https://erfrischungskarte.odis-berlin.de/',
+    note: 'Cool, shady and windy places in Berlin — with shade ' +
+      'modeled for every hour of the day from a LIDAR surface ' +
+      'model. The best hour-by-hour UX in this space.',
+  },
+  {
+    kind: 'map',
+    title: 'Cool Walks',
+    source: 'Barcelona Regional',
+    year: 2021,
+    url: 'https://cool.bcnregional.com/',
+    note: 'Shade-optimal walking routes — shortest, shadiest, or ' +
+      'full "vampire mode" past drinking fountains. The routing ' +
+      'idea every hot city will eventually need.',
+  },
 ]
 
 export const RESOURCE_KINDS = {
   study: { icon: '📄', label: 'The evidence' },
   video: { icon: '🎬', label: 'Watch' },
   act: { icon: '🛠️', label: 'Act' },
+  map: { icon: '🗺️', label: 'Neighbor maps' },
 }
