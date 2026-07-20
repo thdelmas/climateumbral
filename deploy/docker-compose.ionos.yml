@@ -1,0 +1,20 @@
+# Variant for a box where host nginx already terminates TLS (IONOS XL):
+# app only, published on loopback; nginx proxies climateumbral.eu here.
+#   docker compose -f deploy/docker-compose.ionos.yml up -d --build
+services:
+  api:
+    build: ..
+    command: >
+      climateumbral-server -addr :8080 -data /data -dist /srv/dist
+      -trust-proxy
+    ports:
+      - "127.0.0.1:8085:8080"
+    volumes:
+      - ../data:/data
+    restart: unless-stopped
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
