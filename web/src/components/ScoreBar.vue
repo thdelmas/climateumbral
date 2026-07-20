@@ -26,7 +26,7 @@ const emit = defineEmits(['mission'])
     <button @click="emit('mission')">{{ mission.btn }}</button>
   </div>
 
-  <div class="counter you">
+  <div v-if="hasActs" class="counter you">
     <template v-if="hasActs">
       <span class="label">you</span>
       <span v-if="myNightMC">
@@ -52,15 +52,13 @@ const emit = defineEmits(['mission'])
       </span>
       <span v-if="myRank" class="rank">#{{ myRank }} on the ledger</span>
     </template>
-    <template v-else>
-      <span class="label">you</span>
-      <span class="muted">
-        no squares yet — your score starts with one pledge
-      </span>
-    </template>
   </div>
 
-  <div class="counter">
+  <div
+    v-if="flippedM2 || pledgedM2 || candidateCount || nightMC
+      || nightAvg"
+    class="counter"
+  >
     <span class="label">everyone</span>
     <span v-if="nightMC">
       <strong>−{{ nightMC.toFixed(1) }}</strong> m°C night cooling

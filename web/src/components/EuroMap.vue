@@ -247,9 +247,17 @@ function ensureGameLayer() {
         'raster-resampling': 'nearest',
         // no crossfade: a repainted overlay should swap, not flash
         'raster-fade-duration': 0,
+        // translucent: the street map must stay readable under the
+        // grid, or the player can't tell where their square is
+        'raster-opacity': gameOpacity(),
       } },
     before,
   )
+}
+
+// heat reads better a touch denser than the land grid
+function gameOpacity() {
+  return props.mode === 'land' ? 0.62 : 0.8
 }
 
 function quadOf(e0, n0, e1, n1) {
@@ -305,6 +313,20 @@ async function grantedPosition() {
   }
 }
 
+// looksUrban: is a meaningful share of this raster's land built?
+// The arbitrary map-center search must not seat a first-timer at a
+// farm shed in open country — offline check, no extra fetch.
+function looksUrban(r) {
+  let built = 0
+  let land = 0
+  for (let i = 0; i < r.g.length; i++) {
+    if (r.g[i] > 100) continue
+    land++
+    if (r.g[i] >= 30) built++
+  }
+  return land > 0 && built / land >= 0.12
+}
+
 async function frontline() {
   if (raster?.cands?.size) {
     pickAndGo()
@@ -328,7 +350,9 @@ async function frontline() {
       }
     }
   }
-  // then around the current center before teleporting anywhere
+  // then around the current center before teleporting anywhere —
+  // but only if the center is actually somewhere people live; the
+  // default continental view centers on countryside
   const c = map.getCenter()
   const [E, N] = toLAEA(c.lng, c.lat)
   if (inEurope(Math.floor(E / 10), Math.floor(N / 10))) {
@@ -337,7 +361,7 @@ async function frontline() {
     const ok = await fetchRasterBbox({
       e0: E - half, n0: N - half, e1: E + half, n1: N + half,
     })
-    if (ok && raster.cands.size) {
+    if (ok && raster.cands.size && looksUrban(raster)) {
       pickAndGo()
       return
     }
@@ -515,6 +539,9 @@ watch(() => props.version, () => {
 watch(() => props.mode, () => {
   basemapMood(map, props.mode !== 'land')
   paintOverlay()
+  if (map?.getLayer('game')) {
+    map.setPaintProperty('game', 'raster-opacity', gameOpacity())
+  }
   coolSpotsVisible()
   updateHint()
 })
@@ -543,10 +570,6 @@ defineExpose({ frontline, goTo, shelterTonight })
     </div>
     <div v-if="loading" class="loading" role="status">
       loading the front line…
-    </div>
-    <div v-if="!raster && !loading" class="start">
-      <button @click="frontline">→ find me a square</button>
-      <span>or zoom into your city</span>
     </div>
     <p class="hint" aria-live="polite">
       {{ loading ? 'loading the front line…' : hint }}
@@ -579,42 +602,6 @@ defineExpose({ frontline, goTo, shelterTonight })
   border-radius: 6px;
   white-space: nowrap;
   z-index: 3;
-}
-/* empty state: at continental zoom nothing is playable yet, so the
-   map itself offers the first move instead of sitting mute */
-.start {
-  position: absolute;
-  bottom: 18px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 8px 14px;
-  z-index: 2;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
-  flex-wrap: wrap;
-  justify-content: center;
-  max-width: 94%;
-  text-align: center;
-}
-.start button {
-  font: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  padding: 6px 14px;
-  border-radius: 999px;
-  cursor: pointer;
-  border: none;
-  background: var(--accent);
-  color: var(--bg);
-}
-.start span {
-  font-size: 13px;
-  color: var(--ink-2);
 }
 .loading {
   position: absolute;

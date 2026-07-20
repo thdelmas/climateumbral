@@ -181,7 +181,11 @@ async function copyLink() {
     </label>
     <div class="row actions">
       <template v-if="sealed && !claim">
-        <button v-if="isCandidate" @click="emit('pledge', 'depave')">
+        <button
+          v-if="isCandidate"
+          class="primary"
+          @click="emit('pledge', 'depave')"
+        >
           pledge: depave
         </button>
         <button @click="emit('pledge', 'tree')">
@@ -288,6 +292,12 @@ button {
   border: 1px solid var(--line);
   background: var(--ink);
   color: var(--bg);
+}
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
 }
 button.quiet,
 button.link {

@@ -415,8 +415,6 @@ onMounted(async () => {
       @raster="(r) => (raster = r)"
       @refuges="(s) => (refugeSources = s)"
     />
-    <Legend :mode="mode" :refuge-sources="refugeSources" />
-
     <PixelPanel
       v-if="selected"
       ref="panelEl"
@@ -443,6 +441,8 @@ onMounted(async () => {
       @join="joinBlock"
       @leave="leaveBlock"
     />
+
+    <Legend :mode="mode" :refuge-sources="refugeSources" />
 
     <ScoreBar
       :mission="mission"
