@@ -2,7 +2,13 @@
 // a canvas at one canvas pixel per 10 m grid cell. Split from
 // EuroMap.vue — pure painting, no map state.
 import { colorFor, CANDIDATE_COLOR } from './grid.js'
-import { heatColor, DAY_COEF, NIGHT_COEF } from './heat.js'
+import { heatColor } from './heat.js'
+
+// heatColor(coef * S, coef) depends only on the clamped S, so a
+// 256-step lookup replaces ~W*H ramp evaluations (and their array
+// allocations) per heat repaint.
+const HEAT_LUT = Array.from({ length: 256 },
+  (_, k) => heatColor(k / 255, 1))
 
 export function renderOverlay(raster, mode, canvas) {
   const { g, W, H, cands } = raster
@@ -12,13 +18,12 @@ export function renderOverlay(raster, mode, canvas) {
   const ctx = canvas.getContext('2d')
   const im = ctx.createImageData(W, H)
   const heat = mode !== 'land'
-  const coef = mode === 'day' ? DAY_COEF : NIGHT_COEF
   for (let i = 0; i < g.length; i++) {
     let c = null
     let a = 0
     if (heat) {
       if (S[i] >= 0) {
-        c = heatColor(coef * S[i], coef)
+        c = HEAT_LUT[Math.min(255, Math.round(S[i] * 255))]
         a = 210
       }
     } else if (cands.has(i)) {

@@ -1,5 +1,6 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch }
+  from 'vue'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import {
@@ -53,6 +54,14 @@ let pendingFrontline = false
 let pendingGoTo = null
 let refugeList = [] // loaded shelter pins, for "nearest shelter"
 let refugeSources = null // adapter status, for honest absence
+let hoverEvt = null // latest mousemove, processed once per frame
+let hoverRaf = 0
+
+const claimAt = computed(() => {
+  const m = new Map()
+  for (const c of props.claims) m.set(`${c.pe},${c.pn}`, c)
+  return m
+})
 
 const localIdx = (pe, pn) => {
   if (!raster) return -1
@@ -139,10 +148,24 @@ async function loadAnchors() {
   emit('raster', r) // re-emit: nearestAnchor labels can render now
 }
 
+// claimsFingerprint captures the claims that fall inside the loaded
+// raster — the only ledger state recompute() actually reads. Ledger
+// events elsewhere in Europe leave it unchanged, so the version
+// watcher can skip the full re-detection for them.
+function claimsFingerprint() {
+  const parts = []
+  for (const c of props.claims) {
+    const i = localIdx(c.pe, c.pn)
+    if (i >= 0) parts.push(`${i}:${c.kind}:${c.status}`)
+  }
+  return parts.sort().join('|')
+}
+
 // Re-run detection + repaint from cached raster (claims changed, mode
 // changed) without refetching values.
 function recompute() {
   if (!raster) return
+  raster.claimsFp = claimsFingerprint()
   const { g, W, H } = raster
   const claimedGreen = new Set() // depaves + trees extend the network
   const flippedActs = new Map() // only flipped acts cool the model
@@ -167,6 +190,9 @@ function recompute() {
   }
 }
 
+// The overlay rides a canvas source, not an image source: MapLibre
+// reads the pixels straight off the canvas, where updateImage would
+// PNG-encode (toDataURL) and decode 262k pixels on every repaint.
 function paintOverlay() {
   if (!raster) return
   if (!overlay) overlay = document.createElement('canvas')
@@ -178,12 +204,18 @@ function paintOverlay() {
   const src = map.getSource('game')
   const quad = quadOf(e0, n0, e1, n1)
   if (src) {
-    src.updateImage({ url: overlay.toDataURL(), coordinates: quad })
+    src.setCoordinates(quad)
+    // animate:false, so one play/pause uploads the repainted canvas:
+    // pause() re-reads the canvas while still "playing", and a source
+    // without tiles yet reads it on first draw anyway
+    src.play?.()
+    src.pause?.()
   } else {
     map.addSource('game', {
-      type: 'image',
-      url: overlay.toDataURL(),
+      type: 'canvas',
+      canvas: overlay,
       coordinates: quad,
+      animate: false,
     })
   }
   ensureGameLayer()
@@ -197,7 +229,11 @@ function ensureGameLayer() {
     : undefined
   map.addLayer(
     { id: 'game', type: 'raster', source: 'game',
-      paint: { 'raster-resampling': 'nearest' } },
+      paint: {
+        'raster-resampling': 'nearest',
+        // no crossfade: a repainted overlay should swap, not flash
+        'raster-fade-duration': 0,
+      } },
     before,
   )
 }
@@ -318,9 +354,10 @@ onMounted(() => {
   map.addControl(
     new maplibregl.NavigationControl({ showCompass: false }))
   // "around me": the fix never leaves the browser — no accounts, no
-  // server-side location, matching the ledger's data stance
+  // server-side location, matching the ledger's data stance. Coarse
+  // fixes are plenty for 100 m² squares and spare GPS battery/CPU
+  // while tracking.
   map.addControl(new maplibregl.GeolocateControl({
-    positionOptions: { enableHighAccuracy: true },
     trackUserLocation: true,
   }))
   map.on('error', (e) => console.error('map:', e.error ?? e))
@@ -365,36 +402,59 @@ onMounted(() => {
     const [E, N] = toLAEA(e.lngLat.lng, e.lngLat.lat)
     emit('select', { pe: Math.floor(E / 10), pn: Math.floor(N / 10) })
   })
+  // hover work (queryRenderedFeatures + tooltip) runs at most once
+  // per frame — mousemove can fire far faster than the display paints
   map.on('mousemove', (e) => {
-    const pin = pinAt(map, e.point)
-    if (pin) {
-      const n = pin.properties.point_count
-      tip.value = {
-        show: true,
-        x: e.point.x + 14,
-        y: e.point.y + 14,
-        text: n
-          ? `${n} official climate shelters — click to zoom`
-          : pin.properties.tip,
-      }
-      return
+    hoverEvt = e
+    if (!hoverRaf) {
+      hoverRaf = requestAnimationFrame(() => {
+        hoverRaf = 0
+        hover(hoverEvt)
+      })
     }
-    if (!raster) {
-      tip.value.show = false
-      return
-    }
-    const [E, N] = toLAEA(e.lngLat.lng, e.lngLat.lat)
-    const text = tipTextAt(raster, props.claims, props.mode,
-      Math.floor(E / 10), Math.floor(N / 10))
-    tip.value = text
-      ? { show: true, x: e.point.x + 14, y: e.point.y + 14, text }
-      : { show: false, x: 0, y: 0, text: '' }
   })
 })
-onBeforeUnmount(() => map?.remove())
+
+function hover(e) {
+  if (!map) return
+  const pin = pinAt(map, e.point)
+  if (pin) {
+    const n = pin.properties.point_count
+    tip.value = {
+      show: true,
+      x: e.point.x + 14,
+      y: e.point.y + 14,
+      text: n
+        ? `${n} official climate shelters — click to zoom`
+        : pin.properties.tip,
+    }
+    return
+  }
+  if (!raster) {
+    tip.value.show = false
+    return
+  }
+  const [E, N] = toLAEA(e.lngLat.lng, e.lngLat.lat)
+  const text = tipTextAt(raster, claimAt.value, props.mode,
+    Math.floor(E / 10), Math.floor(N / 10))
+  // an already-hidden tooltip stays hidden without touching the ref
+  if (text) {
+    tip.value = { show: true, x: e.point.x + 14, y: e.point.y + 14,
+      text }
+  } else {
+    tip.value.show = false
+  }
+}
+onBeforeUnmount(() => {
+  cancelAnimationFrame(hoverRaf)
+  map?.remove()
+})
 
 watch(() => props.version, () => {
   syncLedger()
+  // most ledger events happen outside the loaded raster — repaint
+  // the vector layers above, but skip the raster re-detection
+  if (raster && raster.claimsFp === claimsFingerprint()) return
   recompute()
 })
 watch(() => props.mode, () => {

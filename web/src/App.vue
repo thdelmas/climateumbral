@@ -340,8 +340,15 @@ onMounted(async () => {
   // board that dropped offline resyncs the moment it is back.
   if (!new URLSearchParams(location.search).has('nolive')) {
     const es = new EventSource('/api/events')
-    es.addEventListener('ledger', refresh)
-    es.addEventListener('hello', refresh)
+    // coalesce bursts: N acts arriving together cost one refresh
+    // (ledger + leaderboard + raster recompute), not N
+    let debounce = 0
+    const scheduleRefresh = () => {
+      clearTimeout(debounce)
+      debounce = setTimeout(refresh, 400)
+    }
+    es.addEventListener('ledger', scheduleRefresh)
+    es.addEventListener('hello', scheduleRefresh)
   }
   await refresh()
   const m = location.hash.match(/^#(\d+),(\d+)$/)

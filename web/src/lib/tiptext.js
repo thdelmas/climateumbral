@@ -4,9 +4,11 @@ import { DAY_COEF, NIGHT_COEF } from './heat.js'
 const SEA = 254
 const NODATA = 255
 
-export function tipTextAt(raster, claims, mode, pe, pn) {
-  const k = `${pe},${pn}`
-  const claim = claims.find((c) => `${c.pe},${c.pn}` === k)
+// claimAt maps "pe,pn" -> claimView — a Map, not the claims array:
+// this runs per hover frame and a linear scan with per-claim string
+// keys would allocate its way through the mousemove budget.
+export function tipTextAt(raster, claimAt, mode, pe, pn) {
+  const claim = claimAt.get(`${pe},${pn}`)
   const col = pe - raster.pe0
   const row = raster.H - 1 - (pn - raster.pn0)
   const inR =
