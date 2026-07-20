@@ -10,6 +10,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -128,15 +129,21 @@ func (c *coolPlacesClient) get(lon, lat float64) ([]coolPlace, error) {
 }
 
 func (c *coolPlacesClient) fetch(lon, lat float64) ([]coolPlace, error) {
-	q := fmt.Sprintf(`[out:json][timeout:15];(`+
+	q := fmt.Sprintf(`[out:json][timeout:8];(`+
 		`nwr["air_conditioning"="yes"]["name"](around:%d,%f,%f);`+
 		`nwr["shop"="mall"]["name"](around:%d,%f,%f);`+
 		`);out center 80;`,
 		coolRadiusM, lat, lon, coolRadiusM, lat, lon)
+	// One overall deadline across every instance: a panicking phone
+	// is waiting on this response, and four hung mirrors must cost
+	// seconds, not two minutes. (Observed live: 4×25 s of hangs.)
+	ctx, cancel := context.WithTimeout(context.Background(),
+		20*time.Second)
+	defer cancel()
 	var lastErr error
 	for _, host := range overpassHosts {
-		req, err := http.NewRequest(http.MethodPost, host,
-			strings.NewReader("data="+url.QueryEscape(q)))
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+			host, strings.NewReader("data="+url.QueryEscape(q)))
 		if err != nil {
 			lastErr = err
 			continue
