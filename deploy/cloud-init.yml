@@ -1,0 +1,18 @@
+#cloud-config
+# Paste as user-data when creating the instance (Scaleway: Advanced
+# options → cloud-init). Image: Ubuntu 24.04.
+# Installs Docker, adds swap (npm build headroom on small instances),
+# clones the repo and brings the prod stack up. First boot ~5 min.
+package_update: true
+packages:
+  - git
+  - docker.io
+  - docker-compose-v2
+runcmd:
+  - fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+  - echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  - systemctl enable --now docker
+  - git clone https://github.com/thdelmas/climateumbral /opt/climateumbral
+  - mkdir -p /opt/climateumbral/data
+  - chown -R 1000:1000 /opt/climateumbral/data
+  - cd /opt/climateumbral && docker compose -f deploy/docker-compose.prod.yml up -d --build
