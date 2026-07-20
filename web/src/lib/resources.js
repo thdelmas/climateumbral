@@ -54,6 +54,7 @@ export const RESOURCES = [
     source: 'Vox',
     year: 2021,
     url: 'https://www.youtube.com/watch?v=ZQ6fSHr5TJg',
+    yt: 'ZQ6fSHr5TJg',
     note: 'Thermal cameras over Phoenix: why tree shade is ' +
       'infrastructure, and why the hottest blocks are the ' +
       'poorest ones.',
@@ -64,6 +65,7 @@ export const RESOURCES = [
     source: 'PBS Terra — Weathered',
     year: 2023,
     url: 'https://www.youtube.com/watch?v=qtinSxbRJV8',
+    yt: 'qtinSxbRJV8',
     note: 'Portland’s heat dome, Medellín’s green ' +
       'corridors, Phoenix’s response — the whole arc in one ' +
       'episode.',
@@ -75,6 +77,7 @@ export const RESOURCES = [
     year: 2024,
     url: 'https://www.pbs.org/video/' +
       'when-will-extreme-heat-become-unlivable-crd0jh/',
+    yt: '7hBMbQ9de1g',
     note: 'The threshold question this map is built around, taken ' +
       'seriously: wet-bulb limits and who hits them first.',
   },
