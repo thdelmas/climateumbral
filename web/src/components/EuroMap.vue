@@ -100,6 +100,9 @@ function updateHint() {
 
 async function refreshRaster() {
   if (!map) return
+  // a programmatic fetch (frontline, seed flight) is in progress —
+  // don't stack a viewport fetch on top of it
+  if (loading.value) return
   if (map.getZoom() < PLAY_ZOOM) {
     raster = null
     updateHint()
@@ -327,11 +330,14 @@ function looksUrban(r) {
   return land > 0 && built / land >= 0.12
 }
 
+const SEED = [2.165, 41.39] // Barcelona — the seed city
+
 async function frontline() {
   if (raster?.cands?.size) {
     pickAndGo()
     return
   }
+  const half = (MAX_DIM * 10) / 2 - 10
   // near the player first: their granted location beats wherever
   // the map happens to be pointing
   const pos = await grantedPosition()
@@ -340,7 +346,6 @@ async function frontline() {
       toLAEA(pos.coords.longitude, pos.coords.latitude)
     if (inEurope(Math.floor(E / 10), Math.floor(N / 10))) {
       hint.value = 'searching the front line around you…'
-      const half = (MAX_DIM * 10) / 2 - 10
       const ok = await fetchRasterBbox({
         e0: E - half, n0: N - half, e1: E + half, n1: N + half,
       })
@@ -350,14 +355,17 @@ async function frontline() {
       }
     }
   }
-  // then around the current center before teleporting anywhere —
-  // but only if the center is actually somewhere people live; the
-  // default continental view centers on countryside
+  // then around the current center — but only once the user has
+  // actually aimed the map at somewhere lived-in; at continental
+  // zoom the center is just the middle of the default view, and a
+  // 512×512 fetch of countryside is a wasted five seconds
   const c = map.getCenter()
   const [E, N] = toLAEA(c.lng, c.lat)
-  if (inEurope(Math.floor(E / 10), Math.floor(N / 10))) {
+  if (
+    map.getZoom() >= 9 &&
+    inEurope(Math.floor(E / 10), Math.floor(N / 10))
+  ) {
     hint.value = 'searching the front line around you…'
-    const half = (MAX_DIM * 10) / 2 - 10
     const ok = await fetchRasterBbox({
       e0: E - half, n0: N - half, e1: E + half, n1: N + half,
     })
@@ -368,7 +376,15 @@ async function frontline() {
   }
   hint.value = 'no front line nearby — flying to the seed city'
   pendingFrontline = true
-  glide({ center: [2.165, 41.39], zoom: 15.5, speed: 2.4 })
+  // the seed raster downloads while the camera is still in the
+  // air: the flight and the EEA fetch run concurrently, and
+  // recompute picks the square the moment the data lands
+  const [sE, sN] = toLAEA(SEED[0], SEED[1])
+  const seedFetch = fetchRasterBbox({
+    e0: sE - half, n0: sN - half, e1: sE + half, n1: sN + half,
+  })
+  glide({ center: SEED, zoom: 15.5, speed: 2.4 })
+  await seedFetch
 }
 
 function pickAndGo() {
