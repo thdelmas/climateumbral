@@ -59,9 +59,24 @@ const daysLeft = computed(() => {
 async function copyLink() {
   const url = `${location.origin}${location.pathname}` +
     `#${props.pixel.pe},${props.pixel.pn}`
-  await navigator.clipboard.writeText(url)
-  copied.value = true
-  setTimeout(() => (copied.value = false), 1500)
+  try {
+    // clipboard API needs a secure context; plain-http LAN dev
+    // falls back to the selection trick
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(url)
+    } else {
+      const ta = document.createElement('textarea')
+      ta.value = url
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      ta.remove()
+    }
+    copied.value = true
+    setTimeout(() => (copied.value = false), 1500)
+  } catch {
+    prompt('copy this link:', url)
+  }
 }
 </script>
 
@@ -95,7 +110,7 @@ async function copyLink() {
           on {{ new Date(claim.flipped).toLocaleDateString() }}
         </span>
         <a v-if="claim.photo" :href="claim.photo" target="_blank"
-          rel="noopener">proof</a>
+          rel="noopener noreferrer">proof</a>
       </template>
       <template v-else>
         <span class="pledged">

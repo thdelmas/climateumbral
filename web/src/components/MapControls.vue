@@ -1,6 +1,6 @@
 <script setup>
 defineProps({ mode: String })
-const emit = defineEmits(['frontline', 'mode'])
+const emit = defineEmits(['frontline', 'shelter', 'mode'])
 const labels = { land: 'map', day: 'day °C', night: 'night °C' }
 </script>
 
@@ -8,6 +8,9 @@ const labels = { land: 'map', day: 'day °C', night: 'night °C' }
   <div class="controls">
     <button class="go" @click="emit('frontline')">
       → find me a square
+    </button>
+    <button class="shelter" @click="emit('shelter')">
+      → nearest shelter
     </button>
     <span class="seg">
       <button
@@ -44,6 +47,12 @@ const labels = { land: 'map', day: 'day °C', night: 'night °C' }
   background: var(--accent);
   color: var(--bg);
   border-color: var(--accent);
+  font-weight: 600;
+}
+.controls button.shelter {
+  background: rgb(43, 108, 196); /* the blue of the shelter pins */
+  color: #ffffff;
+  border-color: rgb(43, 108, 196);
   font-weight: 600;
 }
 .controls .seg {

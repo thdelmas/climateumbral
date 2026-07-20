@@ -18,6 +18,23 @@ export async function fetchRefuges() {
   }
 }
 
+// nearestRefuge: the closest pin to [lon, lat], plus its distance in
+// km (equirectangular — city scale, not navigation).
+export function nearestRefuge(refuges, here) {
+  let best = null
+  let bestD = Infinity
+  for (const r of refuges) {
+    const dx = (here[0] - r.lon) *
+      Math.cos(((here[1] + r.lat) / 2) * Math.PI / 180)
+    const d = Math.hypot(dx, here[1] - r.lat) * 111.32
+    if (d < bestD) {
+      bestD = d
+      best = r
+    }
+  }
+  return best && { ...best, km: bestD }
+}
+
 export function refugesGeojson(refuges) {
   return {
     type: 'FeatureCollection',

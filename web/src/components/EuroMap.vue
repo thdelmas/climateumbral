@@ -11,21 +11,23 @@ import {
 import { ledgerGeojson, selectionGeojson } from '../lib/ledgergeo.js'
 import { blocksGeojson } from '../lib/blocks.js'
 import { fetchAnchors, pickByExposure } from '../lib/anchors.js'
-import { viewport3035, rasterContains, MAX_DIM } from '../lib/viewport.js'
+import { viewport3035, rasterContains, MAX_DIM }
+  from '../lib/viewport.js'
 import { tipTextAt } from '../lib/tiptext.js'
-import {
-  computeCandidates,
-  colorFor,
-  CANDIDATE_COLOR,
-} from '../lib/grid.js'
-import {
-  sealedStats,
-  heatColor,
-  DAY_COEF,
-  NIGHT_COEF,
-} from '../lib/heat.js'
-import { fetchRefuges, refugesGeojson } from '../lib/refuges.js'
+import { computeCandidates } from '../lib/grid.js'
+import { sealedStats } from '../lib/heat.js'
 import { coolSpots, coolSpotsGeojson } from '../lib/coolspots.js'
+import { nearestRefuge } from '../lib/refuges.js'
+import { renderOverlay } from '../lib/overlay.js'
+import {
+  EMPTY_FC,
+  baseStyle,
+  basemapMood,
+  addLedgerLayers,
+  addCoolPlaceLayers,
+  pinAt,
+  openRefugePopup,
+} from '../lib/maplayers.js'
 
 const props = defineProps({
   claims: Array, // active claimViews
@@ -37,14 +39,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['select', 'raster', 'refuges'])
 
-const EMPTY_FC = { type: 'FeatureCollection', features: [] }
-
 const PLAY_ZOOM = 13.2
-const EEA_PNG =
-  'https://image.discomap.eea.europa.eu/arcgis/rest/services' +
-  '/GioLandPublic/HRL_ImperviousnessDensity_2018/ImageServer' +
-  '/exportImage?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857' +
-  '&size=256,256&format=png&f=image'
 
 const el = ref(null)
 const tip = ref({ show: false, x: 0, y: 0, text: '' })
@@ -56,6 +51,8 @@ let raster = null // {g, W, H, pe0, pn0, S, C, cands:Set(local idx)}
 let overlay = null // offscreen canvas painted with candidates / heat
 let pendingFrontline = false
 let pendingGoTo = null
+let refugeList = [] // loaded shelter pins, for "nearest shelter"
+let refugeSources = null // adapter status, for honest absence
 
 const localIdx = (pe, pn) => {
   if (!raster) return -1
@@ -76,15 +73,6 @@ function updateHint() {
     : (heat
       ? 'modeled °C appears at street level — zoom into a city'
       : 'zoom into a city to load the front line')
-}
-
-// Heat modes lean the sealed layer warmer at continental zoom.
-function basemapMood() {
-  if (!map?.getLayer('imd')) return
-  const heat = props.mode !== 'land'
-  map.setPaintProperty('imd', 'raster-opacity', heat ? 0.85 : 0.5)
-  map.setPaintProperty('imd', 'raster-saturation', heat ? 0.5 : 0)
-  map.setPaintProperty('imd', 'raster-contrast', heat ? 0.15 : 0)
 }
 
 async function refreshRaster() {
@@ -115,7 +103,8 @@ async function refreshRaster() {
 async function fetchRasterBbox({ e0, n0, e1, n1 }) {
   loading.value = true
   try {
-    const res = await fetch(`/api/raster?bbox=${e0},${n0},${e1},${n1}`)
+    const res =
+      await fetch(`/api/raster?bbox=${e0},${n0},${e1},${n1}`)
     if (!res.ok) throw new Error((await res.json()).error)
     const [W, H] = res.headers
       .get('X-Raster-Size')
@@ -139,6 +128,17 @@ async function fetchRasterBbox({ e0, n0, e1, n1 }) {
   }
 }
 
+// loadAnchors fills the current raster's human-hour anchors after
+// the fact — the front line paints first, exposure ranking follows.
+async function loadAnchors() {
+  const r = raster
+  if (!r) return
+  const anchors = await fetchAnchors(r)
+  if (raster !== r) return // a newer raster landed meanwhile
+  r.anchors = anchors
+  emit('raster', r) // re-emit: nearestAnchor labels can render now
+}
+
 // Re-run detection + repaint from cached raster (claims changed, mode
 // changed) without refetching values.
 function recompute() {
@@ -157,7 +157,8 @@ function recompute() {
   raster.Sday = Sday
   raster.Snight = Snight
   raster.C = C
-  map.getSource('coolspots')?.setData(coolSpotsGeojson(coolSpots(raster)))
+  map.getSource('coolspots')
+    ?.setData(coolSpotsGeojson(coolSpots(raster)))
   paintOverlay()
   emit('raster', raster)
   if (pendingFrontline) {
@@ -168,62 +169,12 @@ function recompute() {
 
 function paintOverlay() {
   if (!raster) return
-  const { g, W, H, cands } = raster
-  const S = props.mode === 'day' ? raster.Sday : raster.Snight
   if (!overlay) overlay = document.createElement('canvas')
-  overlay.width = W
-  overlay.height = H
-  const ctx = overlay.getContext('2d')
-  const im = ctx.createImageData(W, H)
-  const heat = props.mode !== 'land'
-  const coef = props.mode === 'day' ? DAY_COEF : NIGHT_COEF
-  for (let i = 0; i < g.length; i++) {
-    let c = null
-    let a = 0
-    if (heat) {
-      if (S[i] >= 0) {
-        c = heatColor(coef * S[i], coef)
-        a = 210
-      }
-    } else if (cands.has(i)) {
-      c = CANDIDATE_COLOR
-      a = 255
-    } else if (g[i] <= 100) {
-      // the sealed-soil ramp: gray-green ground truth, the layer to
-      // correlate with the heat views (sea/nodata stay transparent)
-      c = colorFor(g[i])
-      a = 235
-    }
-    if (c) {
-      im.data[i * 4] = c[0]
-      im.data[i * 4 + 1] = c[1]
-      im.data[i * 4 + 2] = c[2]
-      im.data[i * 4 + 3] = a
-    }
-  }
-  if (!heat) {
-    // halo: tint candidate neighbours so the front line pops
-    for (const i of cands) {
-      const x = i % W
-      const y = Math.floor(i / W)
-      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const nx = x + dx
-        const ny = y + dy
-        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue
-        const j = ny * W + nx
-        if (cands.has(j) || g[j] > 100) continue
-        im.data[j * 4] = (im.data[j * 4] + 255 * 2) / 3
-        im.data[j * 4 + 1] = (im.data[j * 4 + 1] + 122 * 2) / 3
-        im.data[j * 4 + 2] = (im.data[j * 4 + 2] + 26 * 2) / 3
-        im.data[j * 4 + 3] = 235
-      }
-    }
-  }
-  ctx.putImageData(im, 0, 0)
+  renderOverlay(raster, props.mode, overlay)
   const e0 = raster.pe0 * 10
   const n0 = raster.pn0 * 10
-  const e1 = e0 + W * 10
-  const n1 = n0 + H * 10
+  const e1 = e0 + raster.W * 10
+  const n1 = n0 + raster.H * 10
   const src = map.getSource('game')
   const quad = quadOf(e0, n0, e1, n1)
   if (src) {
@@ -242,7 +193,8 @@ function paintOverlay() {
 // Pre-load paints anchor on whatever layer exists (see 'load').
 function ensureGameLayer() {
   if (map.getLayer('game')) return
-  const before = map.getLayer('claims-fill') ? 'claims-fill' : undefined
+  const before = map.getLayer('claims-fill') ? 'claims-fill'
+    : undefined
   map.addLayer(
     { id: 'game', type: 'raster', source: 'game',
       paint: { 'raster-resampling': 'nearest' } },
@@ -258,54 +210,9 @@ function quadOf(e0, n0, e1, n1) {
 
 function setOverlayVisible(on) {
   if (map?.getLayer('game')) {
-    map.setLayoutProperty('game', 'visibility', on ? 'visible' : 'none')
+    map.setLayoutProperty('game', 'visibility',
+      on ? 'visible' : 'none')
   }
-}
-
-// ---- cool places: official shelters + modeled cool islands ----
-
-// Two tiers, never blended (see refuges.js / coolspots.js): blue pins
-// are rooms a city promised, green pins are model output. Cool
-// islands only show in the heat views — they are a reading of that
-// model and would masquerade as ground truth on the land map.
-function addCoolPlaceLayers() {
-  map.addSource('refuges', { type: 'geojson', data: EMPTY_FC })
-  map.addLayer({
-    id: 'refuges',
-    type: 'circle',
-    source: 'refuges',
-    minzoom: 10,
-    paint: {
-      'circle-color': 'rgb(43, 108, 196)',
-      'circle-radius': [
-        'interpolate', ['linear'], ['zoom'], 10, 3.5, 16, 8,
-      ],
-      'circle-stroke-color': '#ffffff',
-      'circle-stroke-width': 1.5,
-    },
-  })
-  map.addSource('coolspots', { type: 'geojson', data: EMPTY_FC })
-  map.addLayer({
-    id: 'coolspots',
-    type: 'circle',
-    source: 'coolspots',
-    minzoom: PLAY_ZOOM - 0.5,
-    layout: {
-      visibility: props.mode === 'land' ? 'none' : 'visible',
-    },
-    paint: {
-      'circle-color': 'rgb(58, 122, 84)',
-      'circle-radius': [
-        'interpolate', ['linear'], ['zoom'], 13, 5, 16, 9,
-      ],
-      'circle-stroke-color': '#ffffff',
-      'circle-stroke-width': 1.5,
-    },
-  })
-  fetchRefuges().then(({ sources, refuges }) => {
-    emit('refuges', sources)
-    map?.getSource('refuges')?.setData(refugesGeojson(refuges))
-  })
 }
 
 function coolSpotsVisible() {
@@ -315,52 +222,14 @@ function coolSpotsVisible() {
   }
 }
 
-// pinAt: topmost cool-place feature under the cursor, if any.
-function pinAt(point) {
-  const layers = ['refuges', 'coolspots'].filter((l) => map.getLayer(l))
-  if (!layers.length) return null
-  return map.queryRenderedFeatures(point, { layers })[0] ?? null
-}
-
-// The popup builds DOM nodes, not HTML: dataset strings stay text.
-function openRefugePopup(f) {
-  const p = f.properties
-  const el = document.createElement('div')
-  el.className = 'refuge-pop'
-  const name = document.createElement('strong')
-  name.textContent = p.name
-  el.appendChild(name)
-  if (p.addr) {
-    const addr = document.createElement('div')
-    addr.textContent = p.addr
-    el.appendChild(addr)
-  }
-  const note = document.createElement('div')
-  note.className = 'note'
-  note.textContent =
-    'official climate shelter — check hours before you go'
-  el.appendChild(note)
-  if (p.web) {
-    const a = document.createElement('a')
-    a.href = p.web
-    a.target = '_blank'
-    a.rel = 'noopener'
-    a.textContent = 'official page ↗'
-    el.appendChild(a)
-  }
-  new maplibregl.Popup({ maxWidth: '280px' })
-    .setLngLat(f.geometry.coordinates)
-    .setDOMContent(el)
-    .addTo(map)
-}
-
 // ---- claims / blocks / selection as vector layers ----
 
 function syncLedger() {
   map.getSource('claims')?.setData(
     ledgerGeojson(props.claims, props.mineKeys))
   map.getSource('blocks')?.setData(blocksGeojson(props.joins))
-  map.getSource('selection')?.setData(selectionGeojson(props.selected))
+  map.getSource('selection')
+    ?.setData(selectionGeojson(props.selected))
 }
 
 // ---- interactions ----
@@ -408,37 +277,46 @@ function goTo(pe, pn) {
   map.jumpTo({ center: pixelCenter(pe, pn), zoom: 16.5 })
 }
 
+// shelterTonight flies to the closest official shelter from where
+// the user is looking (tap 📍 first and it is "closest to me").
+// Absence stays honest: no network here is said, not shown as an
+// empty map.
+function shelterTonight() {
+  if (!map) return
+  if (!refugeList.length) {
+    hint.value = refugeSources === null
+      ? 'shelter data unavailable right now — try again in a minute'
+      : 'no shelter network published here yet — ' +
+        'Barcelona is the first adapter; more cities welcome'
+    return
+  }
+  const c = map.getCenter()
+  const best = nearestRefuge(refugeList, [c.lng, c.lat])
+  map.flyTo({ center: [best.lon, best.lat], zoom: 15.5, speed: 2.4 })
+  openRefugePopup(map, {
+    properties: {
+      name: best.name, addr: best.addr ?? '', web: best.web ?? '',
+    },
+    geometry: { coordinates: [best.lon, best.lat] },
+  })
+  const km = Math.round(best.km)
+  hint.value = best.km > 50
+    ? `nearest published shelter network is ~${km} km away — ` +
+      'your city may not publish one yet'
+    : `nearest official shelter: ${best.name}` +
+      (best.km >= 1 ? ` — ~${km} km` : '')
+}
+
 onMounted(() => {
   map = new maplibregl.Map({
     container: el.value,
     center: [10, 51],
     zoom: 4,
-    style: {
-      version: 8,
-      sources: {
-        osm: {
-          type: 'raster',
-          tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-          tileSize: 256,
-          maxzoom: 19,
-          attribution: '© OpenStreetMap contributors',
-        },
-        imd: {
-          type: 'raster',
-          tiles: [EEA_PNG],
-          tileSize: 256,
-          attribution: '© European Union, Copernicus / EEA',
-        },
-      },
-      layers: [
-        { id: 'osm', type: 'raster', source: 'osm' },
-        { id: 'imd', type: 'raster', source: 'imd',
-          paint: { 'raster-opacity': 0.5 } },
-      ],
-    },
+    style: baseStyle(),
     attributionControl: { compact: true },
   })
-  map.addControl(new maplibregl.NavigationControl({ showCompass: false }))
+  map.addControl(
+    new maplibregl.NavigationControl({ showCompass: false }))
   // "around me": the fix never leaves the browser — no accounts, no
   // server-side location, matching the ledger's data stance
   map.addControl(new maplibregl.GeolocateControl({
@@ -447,59 +325,21 @@ onMounted(() => {
   }))
   map.on('error', (e) => console.error('map:', e.error ?? e))
   map.on('load', () => {
-    map.addSource('claims', {
-      type: 'geojson',
-      data: ledgerGeojson(props.claims, props.mineKeys),
+    addLedgerLayers(map, {
+      claims: ledgerGeojson(props.claims, props.mineKeys),
+      blocks: blocksGeojson(props.joins),
+      selection: selectionGeojson(props.selected),
     })
-    map.addSource('blocks', {
-      type: 'geojson',
-      data: blocksGeojson(props.joins),
-    })
-    map.addLayer({
-      id: 'blocks',
-      type: 'line',
-      source: 'blocks',
-      paint: {
-        'line-color': 'rgb(150,118,220)',
-        'line-width': 2,
-        'line-dasharray': [2, 1],
-      },
-    })
-    map.addSource('selection', {
-      type: 'geojson',
-      data: selectionGeojson(props.selected),
-    })
-    map.addLayer({
-      id: 'claims-fill',
-      type: 'fill',
-      source: 'claims',
-      paint: {
-        'fill-color': [
-          'match', ['get', 'kind'],
-          'flipped', 'rgb(125,200,110)',
-          'rgb(235,179,66)', // pledged
-        ],
-        'fill-opacity': 0.9,
-      },
-    })
-    map.addLayer({
-      id: 'claims-mine',
-      type: 'line',
-      source: 'claims',
-      filter: ['==', ['get', 'mine'], true],
-      paint: { 'line-color': '#ffffff', 'line-width': 1.5 },
-    })
-    map.addLayer({
-      id: 'selection',
-      type: 'line',
-      source: 'selection',
-      paint: { 'line-color': '#ffffff', 'line-width': 2.5 },
-    })
-    addCoolPlaceLayers()
+    addCoolPlaceLayers(map, PLAY_ZOOM - 0.5,
+      props.mode === 'land', (sources, refuges) => {
+        refugeSources = sources
+        refugeList = refuges
+        emit('refuges', sources)
+      })
     // a pre-load paint may have added the game layer unanchored;
     // restore the intended order now that the claim layers exist
     if (map.getLayer('game')) map.moveLayer('game', 'claims-fill')
-    basemapMood()
+    basemapMood(map, props.mode !== 'land')
     refreshRaster()
     if (pendingGoTo) {
       goTo(...pendingGoTo)
@@ -508,10 +348,17 @@ onMounted(() => {
   })
   map.on('moveend', refreshRaster)
   map.on('click', (e) => {
-    // refuge pins show from city zoom, well before the game raster
-    const pin = pinAt(e.point)
+    // refuge pins show at any zoom, well before the game raster
+    const pin = pinAt(map, e.point)
+    if (pin?.layer.id === 'refuge-clusters') {
+      map.easeTo({
+        center: pin.geometry.coordinates,
+        zoom: map.getZoom() + 2.5,
+      })
+      return
+    }
     if (pin?.layer.id === 'refuges') {
-      openRefugePopup(pin)
+      openRefugePopup(map, pin)
       return
     }
     if (map.getZoom() < PLAY_ZOOM) return
@@ -519,13 +366,16 @@ onMounted(() => {
     emit('select', { pe: Math.floor(E / 10), pn: Math.floor(N / 10) })
   })
   map.on('mousemove', (e) => {
-    const pin = pinAt(e.point)
+    const pin = pinAt(map, e.point)
     if (pin) {
+      const n = pin.properties.point_count
       tip.value = {
         show: true,
         x: e.point.x + 14,
         y: e.point.y + 14,
-        text: pin.properties.tip,
+        text: n
+          ? `${n} official climate shelters — click to zoom`
+          : pin.properties.tip,
       }
       return
     }
@@ -548,7 +398,7 @@ watch(() => props.version, () => {
   recompute()
 })
 watch(() => props.mode, () => {
-  basemapMood()
+  basemapMood(map, props.mode !== 'land')
   paintOverlay()
   coolSpotsVisible()
   updateHint()
@@ -556,7 +406,7 @@ watch(() => props.mode, () => {
 watch(() => props.selected, () => map?.getSource('selection') &&
   syncLedger())
 
-defineExpose({ frontline, goTo })
+defineExpose({ frontline, goTo, shelterTonight })
 </script>
 
 <template>

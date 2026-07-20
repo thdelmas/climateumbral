@@ -1,6 +1,8 @@
 <script setup>
-import { computed, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, shallowRef, watch }
+  from 'vue'
 import EuroMap from './components/EuroMap.vue'
+import IntroHeader from './components/IntroHeader.vue'
 import PixelPanel from './components/PixelPanel.vue'
 import Leaderboard from './components/Leaderboard.vue'
 import ScoreBar from './components/ScoreBar.vue'
@@ -10,7 +12,8 @@ import { meanPenalty, flipsPerDegree, DAY_COEF, NIGHT_COEF }
   from './lib/heat.js'
 import { inEurope } from './lib/proj.js'
 import { nearestAnchor } from './lib/anchors.js'
-import { blockOf, blockKey, blockCoolingSince } from './lib/blocks.js'
+import { actNightMC, blockOf, blockKey, blockCoolingSince }
+  from './lib/blocks.js'
 import {
   myName,
   setMyName,
@@ -138,12 +141,9 @@ const myRank = computed(() => {
   if (!n) return 0
   return leaders.value.findIndex((r) => r.name === n) + 1
 })
-const NIGHT_MC = { depave: 4, tree: 0, coolroof: 0.4 }
+// same model as the server and the block math — one source of truth
 const myNightMC = computed(() =>
-  myFlipped.value.reduce(
-    (sum, c) => sum + (NIGHT_MC[c.kind] ?? 0) * (c.v ?? 90) / 100,
-    0,
-  ),
+  myFlipped.value.reduce((sum, c) => sum + actNightMC(c), 0),
 )
 const daysLeft = (c) =>
   Math.max(0, Math.ceil((new Date(c.deadline) - Date.now()) / 86_400_000))
@@ -197,45 +197,72 @@ function onMission() {
 
 // ---- ledger sync + acts ----
 
+let refreshSeq = 0 // drop out-of-order responses
+
 async function refresh() {
-  const res = await fetch('/api/claims')
-  const ledger = await res.json()
-  const active = ledger.claims.filter((c) => c.status !== 'expired')
-  const cm = new Map()
-  for (const c of active) cm.set(key(c.pe, c.pn), c)
-  claims.value = active
-  joins.value = ledger.joins ?? []
-  claimAt.value = cm
-  pledgedM2.value = ledger.pledged_m2
-  flippedM2.value = ledger.flipped_m2
-  nightMC.value = ledger.night_mdegc ?? 0
-  version.value++
-  leaders.value = await (await fetch('/api/leaderboard')).json()
+  const seq = ++refreshSeq
+  try {
+    const res = await fetch('/api/claims')
+    const ledger = await res.json()
+    if (seq !== refreshSeq) return // a newer refresh already landed
+    const active = ledger.claims.filter((c) => c.status !== 'expired')
+    const cm = new Map()
+    for (const c of active) cm.set(key(c.pe, c.pn), c)
+    claims.value = active
+    joins.value = ledger.joins ?? []
+    claimAt.value = cm
+    pledgedM2.value = ledger.pledged_m2
+    flippedM2.value = ledger.flipped_m2
+    nightMC.value = ledger.night_mdegc ?? 0
+    version.value++
+    const rows = await (await fetch('/api/leaderboard')).json()
+    if (seq === refreshSeq) leaders.value = rows
+  } catch {
+    // a board that never loaded should say so; a live board that
+    // missed one beat will catch the next event
+    if (seq === refreshSeq && !claims.value.length) {
+      error.value = 'the board is unreachable — is the API running?'
+    }
+  }
+}
+
+async function errText(res) {
+  try {
+    return (await res.json()).error ?? 'request failed'
+  } catch {
+    return `request failed (${res.status})`
+  }
 }
 
 async function post(path, body) {
   error.value = ''
-  const res = await fetch(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) {
-    error.value = (await res.json()).error ?? 'request failed'
+  try {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) error.value = await errText(res)
+    return res
+  } catch {
+    error.value = 'network error — nothing was recorded'
+    return { ok: false, status: 0 }
   }
-  return res
 }
 
 async function del(path, token) {
   error.value = ''
-  const res = await fetch(path, {
-    method: 'DELETE',
-    headers: { 'X-Tilewhip-Token': token ?? '' },
-  })
-  if (res.status !== 204) {
-    error.value = (await res.json()).error ?? 'request failed'
+  try {
+    const res = await fetch(path, {
+      method: 'DELETE',
+      headers: { 'X-Tilewhip-Token': token ?? '' },
+    })
+    if (res.status !== 204) error.value = await errText(res)
+    return res
+  } catch {
+    error.value = 'network error — nothing was erased'
+    return { ok: false, status: 0 }
   }
-  return res
 }
 
 async function pledge(kind) {
@@ -253,6 +280,9 @@ async function pledge(kind) {
   }
   await refresh()
   if (res.ok) {
+    // the raster recomputes in EuroMap's version watcher; wait for
+    // the flush or we read the pre-act candidate count
+    await nextTick()
     lastOpened.value = Math.max(0, candidateCount.value - (before - 1))
     addOpened(lastOpened.value)
     opened.value = openedTotal()
@@ -305,9 +335,13 @@ function select(p) {
 
 onMounted(async () => {
   // live sync: any act by anyone refreshes every open map
-  // (?nolive opts out — headless renderers hang on open streams)
+  // (?nolive opts out — headless renderers hang on open streams).
+  // 'hello' also fires on every EventSource auto-reconnect, so a
+  // board that dropped offline resyncs the moment it is back.
   if (!new URLSearchParams(location.search).has('nolive')) {
-    new EventSource('/api/events').addEventListener('ledger', refresh)
+    const es = new EventSource('/api/events')
+    es.addEventListener('ledger', refresh)
+    es.addEventListener('hello', refresh)
   }
   await refresh()
   const m = location.hash.match(/^#(\d+),(\d+)$/)
@@ -327,43 +361,7 @@ onMounted(async () => {
 
 <template>
   <div class="wrap">
-    <header>
-      <h1>Tilewhip</h1>
-      <p class="sub">
-        Europe as the satellite sees it — every square a real
-        10 × 10 m of ground. Gray is sealed. Green is alive. The game:
-        turn gray into green, square by square, until the nights cool.
-      </p>
-      <ol class="steps">
-        <li>
-          Hit <b>“find me a square”</b> — it flies to an
-          <b>orange</b> square: sealed ground touching life.
-        </li>
-        <li>
-          Yours to change — legally? <b>Pledge a cooling act</b> —
-          depave it, plant a tree pit, brighten the surface — 90 days
-          to do it. Unsure? Every square's panel shows the legal path.
-        </li>
-        <li>
-          Not yours to touch (a road, a schoolyard — most squares)?
-          <b>Join the block</b> — a standing petition, scored by how
-          the block's nights cool from the day you sign.
-        </li>
-        <li>Depaved for real? <b>Mark it flipped</b> (photo link
-          welcome).</li>
-      </ol>
-      <p class="tonight">
-        Too hot <em>tonight</em>? The <b>blue pins</b> are official
-        climate shelters — real rooms your city keeps cool. In the
-        heat views, <b>deep-green pins</b> mark modeled cool islands:
-        the green blocks the night model says stay coolest. The pin
-        📍 button on the map finds the ones around you.
-      </p>
-      <label class="who">
-        I am
-        <input v-model="name" placeholder="pseudonym (optional)" size="18" />
-      </label>
-    </header>
+    <IntroHeader v-model:name="name" />
 
     <ScoreBar
       :mission="mission"
@@ -392,6 +390,7 @@ onMounted(async () => {
     <MapControls
       :mode="mode"
       @frontline="board?.frontline()"
+      @shelter="board?.shelterTonight()"
       @mode="setMode"
     />
 
@@ -426,7 +425,7 @@ onMounted(async () => {
       :day-delta="selHeat?.day ?? null"
       :night-delta="selHeat?.night ?? null"
       :flips-per-deg="selHeat?.flips ?? 0"
-      :key="`${selKey}v${version}`"
+      :key="selKey"
       @pledge="pledge"
       @flip="flip"
       @abandon="abandon"
@@ -455,54 +454,6 @@ onMounted(async () => {
   max-width: 720px;
   margin: 0 auto;
   padding: clamp(16px, 4vw, 48px) clamp(12px, 4vw, 40px) 80px;
-}
-header h1 {
-  font-size: clamp(28px, 5vw, 44px);
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  margin-bottom: 6px;
-}
-.sub {
-  color: var(--ink-2);
-  max-width: 60ch;
-}
-.steps {
-  margin: 14px 0 0 0;
-  padding-left: 22px;
-  font-size: 14px;
-  color: var(--ink-2);
-  max-width: 60ch;
-}
-.steps li + li {
-  margin-top: 4px;
-}
-.steps b {
-  color: var(--ink);
-}
-.tonight {
-  margin-top: 12px;
-  font-size: 14px;
-  color: var(--ink-2);
-  max-width: 60ch;
-}
-.tonight b {
-  color: var(--ink);
-}
-.who {
-  display: inline-flex;
-  gap: 8px;
-  align-items: baseline;
-  margin-top: 12px;
-  font-size: 14px;
-  color: var(--ink-2);
-}
-.who input {
-  font: inherit;
-  padding: 4px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--line);
-  background: var(--card);
-  color: var(--ink);
 }
 .error {
   color: #b3423a;

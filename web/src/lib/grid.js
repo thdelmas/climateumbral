@@ -10,9 +10,10 @@ export const MIN_GREENS = 2
 export const isGreen = (v) => v <= GREEN_MAX
 export const isSealed = (v) => v >= HARD_SEALED && v < SEA
 
-// A candidate is a hard-sealed pixel touching >=3 green-or-claimed neighbours.
-// Claimed pixels count as green: that is the cascade — every claim can open
-// the sealed pixels around it. Mirrors server/main.go's candidate().
+// A candidate is a hard-sealed pixel touching >=2 green-or-claimed
+// neighbours (MIN_GREENS). Claimed pixels count as green: that is the
+// cascade — every claim can open the sealed pixels around it.
+// Mirrors server/main.go's pledgeable().
 export function computeCandidates(grid, w, h, claimed) {
   const cands = new Set()
   for (let y = 0; y < h; y++) {
