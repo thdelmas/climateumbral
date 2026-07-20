@@ -49,4 +49,11 @@ func TestParseOverpassCoolPlacesGarbage(t *testing.T) {
 	if err != nil || len(got) != 0 {
 		t.Fatalf("empty elements is a real answer: %v %v", got, err)
 	}
+	// Overpass reports its own timeout as HTTP 200 + remark — that
+	// must read as a failed instance, never as "nothing here"
+	timedOut := `{"remark":"runtime error: Query timed out in ` +
+		`\"query\" at line 1 after 8 seconds.","elements":[]}`
+	if _, err := parseOverpassCoolPlaces([]byte(timedOut)); err == nil {
+		t.Fatal("want an error on a remark-with-error body")
+	}
 }

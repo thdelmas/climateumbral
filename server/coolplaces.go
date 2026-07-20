@@ -180,6 +180,11 @@ func (c *coolPlacesClient) fetch(lon, lat float64) ([]coolPlace, error) {
 
 func parseOverpassCoolPlaces(raw []byte) ([]coolPlace, error) {
 	var doc struct {
+		// Overpass reports its own failures as HTTP 200 with a
+		// remark ("runtime error: Query timed out…") and empty
+		// elements — that is a failed instance, not "nothing
+		// tagged here". Seen live: two city centres "empty".
+		Remark   string `json:"remark"`
 		Elements []struct {
 			Lon    float64 `json:"lon"`
 			Lat    float64 `json:"lat"`
@@ -192,6 +197,9 @@ func parseOverpassCoolPlaces(raw []byte) ([]coolPlace, error) {
 	}
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		return nil, fmt.Errorf("coolplaces: %w", err)
+	}
+	if strings.Contains(strings.ToLower(doc.Remark), "error") {
+		return nil, fmt.Errorf("coolplaces: remark: %s", doc.Remark)
 	}
 	seen := map[string]bool{} // name+rounded coords: ways often twin nodes
 	out := []coolPlace{}
