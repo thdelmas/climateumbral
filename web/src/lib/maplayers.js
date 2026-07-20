@@ -159,20 +159,26 @@ export function addCoolPlaceLayers(map, minCoolZoom, landMode,
   })
   // The not-official ring: hollow teal — a different shape language
   // from the solid promise pins, on purpose. Viewport-fed (EuroMap
-  // refreshes it on move), city zoom only.
+  // refreshes it on move), city zoom only — but it must arrive
+  // before the shelter clusters break apart, or a zooming user sees
+  // "shelters only" and reads the rings as missing.
   map.addSource('osmcool', { type: 'geojson', data: EMPTY_FC })
   map.addLayer({
     id: 'osmcool',
     type: 'circle',
     source: 'osmcool',
-    minzoom: minCoolZoom,
+    minzoom: minCoolZoom - 0.5,
     paint: {
-      'circle-color': 'rgba(0,0,0,0)',
+      // A washed teal fill, not empty: 182 hairline rings on a busy
+      // basemap measured near-invisible (pixel-scanned) — the tier
+      // must stay lighter than the solid promise pins, but a layer
+      // nobody can see is a lie of omission.
+      'circle-color': 'rgba(16, 148, 160, 0.22)',
       'circle-radius': [
-        'interpolate', ['linear'], ['zoom'], 13, 4.5, 16, 8,
+        'interpolate', ['linear'], ['zoom'], 12.2, 5.5, 16, 9,
       ],
-      'circle-stroke-color': 'rgb(16, 148, 160)',
-      'circle-stroke-width': 2.5,
+      'circle-stroke-color': 'rgb(11, 170, 184)',
+      'circle-stroke-width': 3,
     },
   })
   fetchRefuges().then(({ sources, refuges }) => {

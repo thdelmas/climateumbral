@@ -412,28 +412,54 @@ function goTo(pe, pn) {
 // The not-official ring follows the viewport at city zoom. One
 // fetch per settled view (quantized key skips repeats, in-flight
 // guard skips pile-ups); a failed lookup leaves the last data
-// rather than painting false emptiness.
+// rather than painting false emptiness. Wide views are clamped to
+// a centered window inside the server's tile budget — a viewport
+// slightly too broad must load its middle, not silently nothing
+// (the first live report was exactly that silence).
+const RING_ZOOM = PLAY_ZOOM - 1
+const RING_MAX_W = 0.24 // ° lon — stays within the tile budget
+const RING_MAX_H = 0.15 // ° lat
 let coolPlacesKey = ''
 let coolPlacesBusy = false
 async function refreshCoolPlaces() {
-  if (!map || map.getZoom() < PLAY_ZOOM - 0.5 || coolPlacesBusy) {
+  if (!map || map.getZoom() < RING_ZOOM || coolPlacesBusy) {
     return
   }
   const b = map.getBounds()
-  const key = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]
-    .map((v) => v.toFixed(3)).join(',')
+  let w = b.getWest()
+  let e = b.getEast()
+  let s = b.getSouth()
+  let n = b.getNorth()
+  if (e - w > RING_MAX_W) {
+    const cx = (w + e) / 2
+    w = cx - RING_MAX_W / 2
+    e = cx + RING_MAX_W / 2
+  }
+  if (n - s > RING_MAX_H) {
+    const cy = (s + n) / 2
+    s = cy - RING_MAX_H / 2
+    n = cy + RING_MAX_H / 2
+  }
+  const key = [w, s, e, n].map((v) => v.toFixed(3)).join(',')
   if (key === coolPlacesKey) return
   coolPlacesBusy = true
+  let ok = false
   try {
-    const res = await fetchCoolPlacesBBox(
-      b.getWest(), b.getSouth(), b.getEast(), b.getNorth())
+    const res = await fetchCoolPlacesBBox(w, s, e, n)
     if (res) {
+      ok = true
       coolPlacesKey = key
       map.getSource('osmcool')?.setData(coolPlacesGeojson(res.places))
     }
   } finally {
     coolPlacesBusy = false
   }
+  // A fetch can outlive the view that asked for it (fresh tiles take
+  // seconds); the moveends that arrived meanwhile were swallowed by
+  // the busy guard. Catch up once — exits immediately when the view
+  // hasn't moved, and a failed fetch does NOT loop (the next real
+  // moveend retries instead).
+  if (ok && map) refreshCoolPlaces()
 }
 
 // shelterTonight flies to the closest official shelter from where
@@ -485,6 +511,12 @@ onMounted(() => {
     trackUserLocation: true,
   }))
   map.on('error', (e) => console.error('map:', e.error ?? e))
+  // ?nolive is the headless-driving mode (no SSE); expose the map
+  // handle there so drivers can query rendered truth instead of
+  // guessing from pixels. Never set on the live path.
+  if (new URLSearchParams(location.search).has('nolive')) {
+    window.__map = map
+  }
   map.on('load', () => {
     addLedgerLayers(map, {
       claims: ledgerGeojson(props.claims, props.mineKeys),

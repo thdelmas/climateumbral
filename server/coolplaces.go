@@ -64,8 +64,8 @@ var coolPlaceKinds = map[string]bool{
 const (
 	coolCellDeg   = 0.02            // point-mode cache cell ≈ 1.5 km
 	coolRadiusM   = 2500            // point-mode radius from cell center
-	coolTileDeg   = 0.05            // map-mode tile ≈ 4×5.5 km
-	coolMaxTiles  = 8               // per request — forces city zoom
+	coolTileDeg   = 0.1             // map-mode tile ≈ 8×11 km
+	coolMaxTiles  = 12              // per request — forces city zoom
 	coolPlacesTTL = 24 * time.Hour  // OSM edits are slow-moving
 	coolPlacesErr = 5 * time.Minute // back off failing instances
 )
@@ -239,7 +239,7 @@ func (c *coolPlacesClient) fetchBBox(s, w, n, e float64) (
 	q := fmt.Sprintf(`[out:json][timeout:8][bbox:%f,%f,%f,%f];(`+
 		`nwr["air_conditioning"="yes"]["name"];`+
 		`nwr["shop"="mall"]["name"];`+
-		`);out center 80;`,
+		`);out center 150;`,
 		s, w, n, e)
 	// One overall deadline across every instance: a panicking phone
 	// is waiting on this response, and four hung mirrors must cost
