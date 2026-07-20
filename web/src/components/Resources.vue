@@ -54,6 +54,10 @@ const embedURL = (id) =>
               <span class="playnote">nothing loads from YouTube
                 until you press play</span>
             </button>
+            <!-- referrerpolicy: YouTube refuses to play without
+              knowing the embedding origin (Error 153, seen live);
+              "origin" sends the bare domain — which the embed
+              reveals anyway — and nothing more. -->
             <iframe
               v-else
               :src="embedURL(r.yt)"
@@ -61,7 +65,7 @@ const embedURL = (id) =>
               allow="autoplay; encrypted-media; fullscreen;
                 picture-in-picture"
               allowfullscreen
-              referrerpolicy="no-referrer"
+              referrerpolicy="origin"
             />
           </div>
         </li>
