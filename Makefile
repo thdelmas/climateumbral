@@ -25,7 +25,8 @@ build:
 	docker build -t tilewhip .
 
 run:
-	docker run --rm -p 8080:8080 -v $(PWD)/data:/data tilewhip
+	docker run --rm -p 127.0.0.1:8080:8080 \
+		-v "$(PWD)/data:/data" tilewhip
 
 prototype:
 	xdg-open prototype/index.html

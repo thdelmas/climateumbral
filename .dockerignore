@@ -1,0 +1,10 @@
+.git
+data
+docs
+prototype
+tools/__pycache__
+web/node_modules
+web/dist
+server/server
+*.raw
+*.tif
