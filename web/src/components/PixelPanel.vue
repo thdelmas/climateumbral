@@ -158,14 +158,14 @@ async function copyLink() {
           pry it yourself. Ask your city instead: façade-garden
           schemes, tree-pit adoption, official depave programs. And
           join this block's petition — always legal, everywhere,
-          scored by how the block's nights cool from the day you
+          counted by how the block's nights cool from the day you
           sign.
         </li>
       </ul>
       <p>
         Rules are local — your city hall decides. This is education,
         not legal advice. More in
-        <a href="#learn">understand &amp; act</a> below.
+        <a href="#legal">the guide</a> below.
       </p>
     </details>
     <label

@@ -45,6 +45,11 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
+/* Anchor targets clear the sticky nav. */
+#app [id] {
+  scroll-margin-top: 56px;
+}
+
 /* Keyboard users get the same map everyone else gets. */
 :focus-visible {
   outline: 2px solid var(--accent);

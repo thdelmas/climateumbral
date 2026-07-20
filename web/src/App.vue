@@ -180,8 +180,8 @@ const mission = computed(() => {
   if (!mine.value.length) {
     return {
       text:
-        'Your first move: find a sealed square — pledge a cooling ' +
-        'act if it is yours, join the block petition if not.',
+        'Start here: find a sealed square — pledge a cooling act ' +
+        'if it is yours, join the block petition if not.',
       btn: '→ find me a square',
       goto: null,
     }
@@ -390,7 +390,16 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="wrap">
+  <nav class="topnav" aria-label="site">
+    <div class="inner">
+      <a class="brand" href="#top">ClimateUmbral</a>
+      <a href="#map">map</a>
+      <a href="#act">act</a>
+      <a href="#learn">guide</a>
+      <a href="#ledger">ledger</a>
+    </div>
+  </nav>
+  <div id="top" class="wrap">
     <IntroHeader />
 
     <main>
@@ -404,6 +413,7 @@ onMounted(async () => {
     />
 
     <EuroMap
+      id="map"
       ref="board"
       :claims="claims"
       :joins="joins"
@@ -468,7 +478,7 @@ onMounted(async () => {
       @mission="onMission"
     />
 
-    <Leaderboard :rows="leaders" />
+    <Leaderboard id="ledger" :rows="leaders" />
 
     <Learn />
     </main>
@@ -479,7 +489,8 @@ onMounted(async () => {
         EEA — Imperviousness Density 2018, 10 m. Basemap ©
         OpenStreetMap contributors. Climate shelters: Ajuntament de
         Barcelona, Open Data BCN (CC BY 4.0) — more city adapters
-        welcome. Claims are pledges; satellites keep the real score.
+        welcome. Claims are pledges; satellites verify the real
+        change.
         The ledger stores only what this board shows; erase your acts
         anytime from their pixel. Your location, if you share it,
         stays in your browser.
@@ -489,6 +500,38 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.topnav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+.topnav .inner {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 8px clamp(12px, 4vw, 40px);
+  display: flex;
+  gap: clamp(10px, 3vw, 22px);
+  align-items: baseline;
+  overflow-x: auto;
+}
+.topnav a {
+  font-size: 13.5px;
+  color: var(--ink-2);
+  text-decoration: none;
+  white-space: nowrap;
+  padding: 4px 0;
+}
+.topnav a:hover {
+  color: var(--ink);
+}
+.topnav .brand {
+  font-weight: 800;
+  color: var(--ink);
+  margin-right: auto;
+  letter-spacing: -0.01em;
+}
 .wrap {
   max-width: 720px;
   margin: 0 auto;

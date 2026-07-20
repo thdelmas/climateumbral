@@ -13,7 +13,7 @@
       green, square by square, until the nights cool.
     </p>
     <details class="how">
-      <summary>How to play — 60 seconds</summary>
+      <summary>How it works — 60 seconds</summary>
       <ol class="steps">
         <li>
           Hit <b>“find me a square”</b> — it flies to an
@@ -28,8 +28,8 @@
         </li>
         <li>
           Not yours to touch (a road, a schoolyard — most squares)?
-          <b>Join the block</b> — a standing petition, scored by how
-          the block's nights cool from the day you sign.
+          <b>Join the block</b> — a standing petition, counted by
+          how the block's nights cool from the day you sign.
         </li>
         <li>Depaved for real? <b>Mark it flipped</b> (photo link
           welcome).</li>
@@ -39,7 +39,7 @@
         an official climate shelter — a real room your city keeps
         cool. And <em>umbral</em> means threshold: the night a body
         can sleep through — the full story, the levers and the law
-        live in <a href="#learn">understand &amp; act</a>.
+        live in <a href="#learn">the guide</a>.
       </p>
     </details>
   </header>
