@@ -10,6 +10,7 @@ import ScoreBar from './components/ScoreBar.vue'
 import Legend from './components/Legend.vue'
 import MapControls from './components/MapControls.vue'
 import Learn from './components/Learn.vue'
+import Resources from './components/Resources.vue'
 import { meanPenalty, greenSealedSpread, flipsPerDegree, DAY_COEF,
   NIGHT_COEF } from './lib/heat.js'
 import { inEurope } from './lib/proj.js'
@@ -417,6 +418,7 @@ onMounted(async () => {
       <a href="#act">act</a>
       <a href="#learn">guide</a>
       <a href="#ledger">ledger</a>
+      <a href="#resources">resources</a>
       <a class="hot" href="#cool">{{ coolT.title }}</a>
     </div>
   </nav>
@@ -506,6 +508,8 @@ onMounted(async () => {
     <Leaderboard id="ledger" :rows="leaders" />
 
     <Learn />
+
+    <Resources />
     </main>
 
     <footer>
