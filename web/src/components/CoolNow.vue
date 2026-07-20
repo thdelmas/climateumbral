@@ -7,17 +7,20 @@
 // and honest absence (no network here ≠ no shelters exist). The
 // advice block and 112 render even when everything else fails —
 // the screen must help even with no data and no location.
+//
+// Two tiers, never blended: official climate shelters (a city's
+// promise, /api/refuges) and other cool public places (crowd
+// knowledge from OSM, /api/coolplaces) — separate sections,
+// separate words, so a mall never borrows a city's authority.
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { fetchRefuges } from '../lib/refuges.js'
 import { STRINGS, LANGS, pickLang } from '../lib/cooltext.js'
 
 const emit = defineEmits(['close'])
 
-// ---- language: auto-pick, one-tap override ----------------------
 const lang = ref(pickLang())
 const t = computed(() => STRINGS[lang.value])
 
-// ---- the finder -------------------------------------------------
 // Cities with a published network, for when location is denied,
 // unavailable, or wrong. Order = current adapter order.
 const CITIES = [
@@ -29,8 +32,16 @@ const CITIES = [
 
 const step = ref('start') // start | locating | list | far | nodata
 const note = ref('') // denied/error line above the city buttons
-const results = ref([]) // nearest shelters, with .km
+const results = ref([]) // nearest official shelters, with .km
 const farthest = ref(null) // nearest-known when it is too far to walk
+const others = ref([]) // a/c public places (OSM), with .km
+const KIND_ICON = {
+  mall: '🛍️', department_store: '🏬', supermarket: '🛒',
+  chemist: '💊', pharmacy: '💊', library: '📚',
+  community_centre: '🏠', cinema: '🎬', place_of_worship: '⛪',
+  cafe: '☕', restaurant: '🍽️', fast_food: '🍔', townhall: '🏛️',
+  arts_centre: '🎭', museum: '🏛️', gallery: '🖼️',
+}
 
 let refuges = null // fetched once, on first need
 async function loadRefuges() {
@@ -52,14 +63,52 @@ const walkMin = (d) => Math.ceil(d * 15)
 const distLabel = (d) =>
   d < 1 ? `${Math.round(d * 100) * 10} m` : `${d.toFixed(1)} km`
 
+// Open-now is only ever claimed from structured per-day hours
+// (r.week, Monday-first). Freeform hour strings display as-is — a
+// guessed "open" sends a body to a locked door.
+function status(r) {
+  if (!r.week) return null
+  const today = r.week[(new Date().getDay() + 6) % 7]
+  if (!today) return null
+  if (/ferm/i.test(today)) return { open: false, text: t.value.closedToday }
+  const m = today.match(
+    /^(\d{1,2})[h:](\d{2})?\s*-\s*(\d{1,2})[h:](\d{2})?$/)
+  if (!m) return { open: null, text: `${t.value.todayW}: ${today}` }
+  const now = new Date()
+  const cur = now.getHours() * 60 + now.getMinutes()
+  const from = +m[1] * 60 + +(m[2] ?? 0)
+  const to = +m[3] * 60 + +(m[4] ?? 0)
+  if (cur >= from && cur < to) {
+    return {
+      open: true,
+      text: `${t.value.openNow} · ${t.value.until} ${m[3]}h${m[4] ?? ''}`,
+    }
+  }
+  return {
+    open: false,
+    text: `${t.value.closedNow} · ${t.value.todayW} ${today}`,
+  }
+}
+
 async function findNear(lon, lat) {
   step.value = 'locating'
+  const here = [lon, lat]
+  // the not-official ring loads in parallel and fills in when ready
+  others.value = []
+  fetch(`/api/coolplaces?lon=${lon}&lat=${lat}`)
+    .then((r) => (r.ok ? r.json() : { places: [] }))
+    .then(({ places }) => {
+      others.value = (places ?? [])
+        .map((p) => ({ ...p, km: km(here, [p.lon, p.lat]) }))
+        .sort((a, b) => a.km - b.km)
+        .slice(0, 4)
+    })
+    .catch(() => {}) // this ring is a bonus, never a blocker
   const list = await loadRefuges()
   if (!list.length) {
     step.value = 'nodata'
     return
   }
-  const here = [lon, lat]
   const scored = list
     .map((r) => ({ ...r, km: km(here, [r.lon, r.lat]) }))
     .sort((a, b) => a.km - b.km)
@@ -73,21 +122,40 @@ async function findNear(lon, lat) {
   step.value = 'list'
 }
 
+// First tap must never waste itself: a fast POSITION_UNAVAILABLE
+// (location service still waking up, cold fix) gets one silent
+// harder retry before the user sees anything. Only a real
+// permission denial gets the "blocked" message.
+function locate(highAcc, onFail) {
+  navigator.geolocation.getCurrentPosition(
+    (pos) => findNear(pos.coords.longitude, pos.coords.latitude),
+    onFail,
+    {
+      enableHighAccuracy: highAcc,
+      timeout: highAcc ? 25000 : 10000,
+      maximumAge: highAcc ? 0 : 300000,
+    },
+  )
+}
+
 function useMyLocation() {
   note.value = ''
   if (!navigator.geolocation) {
-    note.value = t.value.denied
+    note.value = t.value.locFail
     return
   }
   step.value = 'locating'
-  navigator.geolocation.getCurrentPosition(
-    (pos) => findNear(pos.coords.longitude, pos.coords.latitude),
-    () => {
+  locate(false, (err) => {
+    if (err.code === 1) { // PERMISSION_DENIED
       step.value = 'start'
-      note.value = t.value.denied
-    },
-    { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
-  )
+      note.value = t.value.locDenied
+      return
+    }
+    locate(true, () => {
+      step.value = 'start'
+      note.value = t.value.locFail
+    })
+  })
 }
 
 // Walking directions in whatever maps app the phone owns. Only the
@@ -142,13 +210,22 @@ onUnmounted(() => {
       </template>
 
       <template v-else-if="step === 'list'">
-        <h2>{{ t.near }}</h2>
+        <h2>✔ {{ t.nearOfficial }}</h2>
+        <p class="tiernote">{{ t.officialNote }}</p>
         <div v-for="r in results" :key="r.lon + ',' + r.lat"
           class="card">
           <div class="name">{{ r.name }}</div>
           <div class="dist">
             🚶 {{ walkMin(r.km) }} {{ t.walkMin }}
             · {{ distLabel(r.km) }}
+          </div>
+          <div v-if="status(r)" class="status"
+            :class="{ open: status(r).open === true,
+                      shut: status(r).open === false }">
+            {{ status(r).text }}
+          </div>
+          <div v-else-if="r.hours" class="status">
+            🕐 {{ r.hours }}
           </div>
           <div v-if="r.addr" class="addr">{{ r.addr }}</div>
           <a class="big route" :href="routeURL(r)" target="_blank"
@@ -167,6 +244,26 @@ onUnmounted(() => {
 
       <template v-else-if="step === 'nodata'">
         <p class="note big-note" role="alert">{{ t.noData }}</p>
+      </template>
+
+      <template v-if="(step === 'list' || step === 'far')
+        && others.length">
+        <h2>{{ t.nearOther }}</h2>
+        <p class="tiernote">{{ t.otherNote }}</p>
+        <div v-for="p in others" :key="p.lon + ',' + p.lat"
+          class="card other">
+          <div class="name">
+            {{ KIND_ICON[p.kind] ?? '🏢' }} {{ p.name }}
+          </div>
+          <div class="dist">
+            🚶 {{ walkMin(p.km) }} {{ t.walkMin }}
+            · {{ distLabel(p.km) }}
+          </div>
+          <div v-if="p.hours" class="status">🕐 {{ p.hours }}</div>
+          <a class="big route" :href="routeURL(p)" target="_blank"
+            rel="noopener">➜ {{ t.route }}</a>
+        </div>
+        <p class="hours">© OpenStreetMap contributors</p>
       </template>
 
       <section class="advice">
@@ -253,7 +350,12 @@ h1 {
 }
 h2 {
   font-size: 22px;
-  margin: 22px 0 10px;
+  margin: 22px 0 4px;
+}
+.tiernote {
+  color: var(--ink-2);
+  font-size: 16px;
+  margin-bottom: 8px;
 }
 .big {
   display: block;
@@ -309,6 +411,9 @@ h2 {
   padding: 16px;
   margin: 12px 0;
 }
+.card.other {
+  border-style: dashed;
+}
 .name {
   font-size: 23px;
   font-weight: 800;
@@ -316,6 +421,18 @@ h2 {
 .dist {
   font-size: 21px;
   margin-top: 4px;
+}
+.status {
+  margin-top: 4px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.status.open {
+  color: var(--accent);
+}
+.status.shut {
+  color: var(--err);
 }
 .addr {
   color: var(--ink-2);

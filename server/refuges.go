@@ -32,7 +32,15 @@ type refuge struct {
 	Name string  `json:"name"`
 	Addr string  `json:"addr,omitempty"`
 	Web  string  `json:"web,omitempty"`
-	Src  string  `json:"src"`
+	// Hours is a display string, as published ("Juni-Aug, MO-FR,
+	// 09-17 Uhr"). Week is structured per-day hours, Monday first,
+	// "" where unknown — only sources that publish per-day columns
+	// fill it, and only Week is honest enough to compute an
+	// open-now claim from. A guessed "open" sends a body to a
+	// locked door; freeform text stays display-only.
+	Hours string     `json:"hours,omitempty"`
+	Week  *[7]string `json:"week,omitempty"`
+	Src   string     `json:"src"`
 }
 
 // refugeSource is one city's published network. Adding a city is
@@ -302,6 +310,13 @@ func parseParisRefuges(raw []byte) ([]refuge, error) {
 		Paying string `json:"payant"`
 		Addr   string `json:"adresse"`
 		Arr    string `json:"arrondissement"`
+		Mon    string `json:"horaires_lundi"`
+		Tue    string `json:"horaires_mardi"`
+		Wed    string `json:"horaires_mercredi"`
+		Thu    string `json:"horaires_jeudi"`
+		Fri    string `json:"horaires_vendredi"`
+		Sat    string `json:"horaires_samedi"`
+		Sun    string `json:"horaires_dimanche"`
 		Geo    *struct {
 			Lon float64 `json:"lon"`
 			Lat float64 `json:"lat"`
@@ -328,9 +343,24 @@ func parseParisRefuges(raw []byte) ([]refuge, error) {
 		if r.Paying == "Oui" {
 			addr += " · entrée payante"
 		}
+		// Per-day columns, Monday first. "-" is the feed's "no
+		// information" — recorded as "", never as closed.
+		var week *[7]string
+		days := [7]string{r.Mon, r.Tue, r.Wed, r.Thu, r.Fri,
+			r.Sat, r.Sun}
+		for i, d := range days {
+			d = strings.TrimSpace(d)
+			if d == "-" {
+				d = ""
+			}
+			days[i] = d
+			if d != "" {
+				week = &days
+			}
+		}
 		out = append(out, refuge{
 			Lon: r.Geo.Lon, Lat: r.Geo.Lat, Name: r.Name,
-			Addr: addr, Src: "paris",
+			Addr: addr, Week: week, Src: "paris",
 		})
 	}
 	if len(out) == 0 {
@@ -396,20 +426,15 @@ func parseWienRefuges(raw []byte) ([]refuge, error) {
 					"or wrong CRS upstream", lon, lat)
 		}
 		seen[p.ID] = true
-		addr := strings.Join(strings.Fields(p.Addr), " ")
-		if h := strings.TrimSpace(p.Hours); h != "" {
-			if addr != "" {
-				addr += " · "
-			}
-			addr += h
-		}
 		web := strings.TrimSpace(p.Web)
 		if !strings.HasPrefix(web, "http") {
 			web = ""
 		}
 		out = append(out, refuge{
-			Lon: lon, Lat: lat, Name: p.Name, Addr: addr,
-			Web: web, Src: "wien",
+			Lon: lon, Lat: lat, Name: p.Name,
+			Addr:  strings.Join(strings.Fields(p.Addr), " "),
+			Hours: strings.TrimSpace(p.Hours),
+			Web:   web, Src: "wien",
 		})
 	}
 	if len(out) == 0 {
@@ -464,6 +489,7 @@ func parseLyonRefuges(raw []byte) ([]refuge, error) {
 			Addr    string `json:"adresse"`
 			Commune string `json:"commune"`
 			Web     string `json:"web"`
+			Hours   string `json:"openinghours"`
 		}
 		if err := json.Unmarshal(f.Properties, &p); err != nil {
 			continue
@@ -493,9 +519,14 @@ func parseLyonRefuges(raw []byte) ([]refuge, error) {
 		if !strings.HasPrefix(web, "http") {
 			web = ""
 		}
+		// "NR" is the feed's "not reported" — not hours
+		hours := strings.TrimSpace(p.Hours)
+		if hours == "NR" {
+			hours = ""
+		}
 		out = append(out, refuge{
 			Lon: lon, Lat: lat, Name: p.Name, Addr: addr,
-			Web: web, Src: "lyon",
+			Hours: hours, Web: web, Src: "lyon",
 		})
 	}
 	if len(out) == 0 {

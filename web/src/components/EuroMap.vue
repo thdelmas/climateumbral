@@ -18,7 +18,7 @@ import { tipTextAt } from '../lib/tiptext.js'
 import { computeCandidates } from '../lib/grid.js'
 import { sealedStats } from '../lib/heat.js'
 import { coolSpots, coolSpotsGeojson } from '../lib/coolspots.js'
-import { nearestRefuge } from '../lib/refuges.js'
+import { nearestRefuge, hoursLabel } from '../lib/refuges.js'
 import { renderOverlay } from '../lib/overlay.js'
 import {
   EMPTY_FC,
@@ -425,6 +425,7 @@ function shelterTonight() {
   openRefugePopup(map, {
     properties: {
       name: best.name, addr: best.addr ?? '', web: best.web ?? '',
+      hours: hoursLabel(best),
     },
     geometry: { coordinates: [best.lon, best.lat] },
   })

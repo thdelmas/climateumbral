@@ -93,6 +93,8 @@ const parisFixture = `[
   {"identifiant": "PI01", "nom": "Piscine Fictive",
    "type": "Piscine", "payant": "Oui",
    "adresse": "9, rue Imaginaire", "arrondissement": "75098",
+   "horaires_lundi": "10h00 - 20h00", "horaires_mardi": "Fermé",
+   "horaires_mercredi": "-",
    "geo_point_2d": {"lon": 2.36, "lat": 48.86}},
   {"identifiant": "BR01", "nom": "Brumisateur Quelconque",
    "type": "Brumisateur", "payant": "Non",
@@ -140,6 +142,16 @@ func TestParseParisRefuges(t *testing.T) {
 	if got[1].Addr != "9, rue Imaginaire · 75098 · entrée payante" {
 		t.Errorf("paid pool addr = %q", got[1].Addr)
 	}
+	// the library has no hour columns at all -> no week claimed;
+	// the pool's "-" day records "no information", not closed
+	if got[0].Week != nil {
+		t.Errorf("hourless refuge must carry no week: %+v", got[0].Week)
+	}
+	w := got[1].Week
+	if w == nil || w[0] != "10h00 - 20h00" || w[1] != "Fermé" ||
+		w[2] != "" || w[6] != "" {
+		t.Errorf("pool week = %+v", w)
+	}
 }
 
 func TestParseParisRefugesGarbage(t *testing.T) {
@@ -184,8 +196,11 @@ func TestParseWienRefuges(t *testing.T) {
 	if r.Name != "Erfundene Bibliothek" || r.Src != "wien" {
 		t.Errorf("name/src = %q/%q", r.Name, r.Src)
 	}
-	if r.Addr != "9., Erfundene Gasse 1 · MO-FR, 09-17 Uhr" {
-		t.Errorf("addr = %q (hours not appended?)", r.Addr)
+	if r.Addr != "9., Erfundene Gasse 1" {
+		t.Errorf("addr = %q", r.Addr)
+	}
+	if r.Hours != "MO-FR, 09-17 Uhr" {
+		t.Errorf("hours = %q", r.Hours)
 	}
 	if r.Web != "https://example.org/kuehl" {
 		t.Errorf("web = %q (trailing newline not trimmed?)", r.Web)

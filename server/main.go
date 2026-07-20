@@ -44,6 +44,7 @@ type server struct {
 	eea         *eeaClient
 	anchors     *anchorClient
 	refuges     *refugeClient
+	coolPlaces  *coolPlacesClient
 	hub         *hub
 	limiter     *limiter
 	readLimiter *limiter
@@ -135,10 +136,11 @@ func main() {
 
 	expiry := time.Duration(*expiryDays) * 24 * time.Hour
 	s := &server{
-		eea:     newEEA(),
-		anchors: newAnchors(),
-		refuges: newRefuges(),
-		hub:     newHub(),
+		eea:        newEEA(),
+		anchors:    newAnchors(),
+		refuges:    newRefuges(),
+		coolPlaces: newCoolPlaces(),
+		hub:        newHub(),
 		// ~12 acts/min after a burst of 5; reads get a budget an
 		// honest map never exhausts but a tight loop does
 		limiter:     newLimiter(0.2, 5),
@@ -163,6 +165,7 @@ func main() {
 	mux.HandleFunc("GET /api/raster", s.rlimit(s.handleRaster))
 	mux.HandleFunc("GET /api/anchors", s.rlimit(s.handleAnchors))
 	mux.HandleFunc("GET /api/refuges", s.rlimit(s.handleRefuges))
+	mux.HandleFunc("GET /api/coolplaces", s.rlimit(s.handleCoolPlaces))
 	mux.HandleFunc("GET /api/claims", s.rlimit(s.handleGetLedger))
 	mux.HandleFunc("POST /api/claims", s.limit(s.handlePledge))
 	mux.HandleFunc("POST /api/claims/{pe}/{pn}/flip",

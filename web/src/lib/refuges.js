@@ -35,6 +35,15 @@ export function nearestRefuge(refuges, here) {
   return best && { ...best, km: bestD }
 }
 
+// hoursLabel: one display line. Freeform hours as published; from
+// structured per-day hours (week, Monday-first), today's entry.
+export function hoursLabel(r) {
+  if (r.hours) return r.hours
+  if (!r.week) return ''
+  const today = r.week[(new Date().getDay() + 6) % 7]
+  return today ? `today ${today}` : ''
+}
+
 export function refugesGeojson(refuges) {
   return {
     type: 'FeatureCollection',
@@ -45,6 +54,7 @@ export function refugesGeojson(refuges) {
         name: r.name,
         addr: r.addr ?? '',
         web: r.web ?? '',
+        hours: hoursLabel(r),
         src: r.src,
         tip: `${r.name} — official climate shelter`,
       },

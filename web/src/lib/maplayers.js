@@ -184,6 +184,11 @@ export function openRefugePopup(map, f) {
     addr.textContent = p.addr
     el.appendChild(addr)
   }
+  if (p.hours) {
+    const hours = document.createElement('div')
+    hours.textContent = `🕐 ${p.hours}`
+    el.appendChild(hours)
+  }
   const note = document.createElement('div')
   note.className = 'note'
   note.textContent =
