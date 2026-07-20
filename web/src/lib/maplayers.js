@@ -157,6 +157,24 @@ export function addCoolPlaceLayers(map, minCoolZoom, landMode,
       'circle-stroke-width': 1.5,
     },
   })
+  // The not-official ring: hollow teal — a different shape language
+  // from the solid promise pins, on purpose. Viewport-fed (EuroMap
+  // refreshes it on move), city zoom only.
+  map.addSource('osmcool', { type: 'geojson', data: EMPTY_FC })
+  map.addLayer({
+    id: 'osmcool',
+    type: 'circle',
+    source: 'osmcool',
+    minzoom: minCoolZoom,
+    paint: {
+      'circle-color': 'rgba(0,0,0,0)',
+      'circle-radius': [
+        'interpolate', ['linear'], ['zoom'], 13, 4.5, 16, 8,
+      ],
+      'circle-stroke-color': 'rgb(16, 148, 160)',
+      'circle-stroke-width': 2.5,
+    },
+  })
   fetchRefuges().then(({ sources, refuges }) => {
     onData(sources, refuges)
     map?.getSource('refuges')?.setData(refugesGeojson(refuges))
@@ -165,7 +183,7 @@ export function addCoolPlaceLayers(map, minCoolZoom, landMode,
 
 // pinAt: topmost cool-place feature under the cursor, if any.
 export function pinAt(map, point) {
-  const layers = ['refuges', 'refuge-clusters', 'coolspots']
+  const layers = ['refuges', 'refuge-clusters', 'coolspots', 'osmcool']
     .filter((l) => map.getLayer(l))
   if (!layers.length) return null
   return map.queryRenderedFeatures(point, { layers })[0] ?? null
@@ -202,6 +220,31 @@ export function openRefugePopup(map, f) {
     a.textContent = 'official page ↗'
     el.appendChild(a)
   }
+  new maplibregl.Popup({ maxWidth: '280px' })
+    .setLngLat(f.geometry.coordinates)
+    .setDOMContent(el)
+    .addTo(map)
+}
+
+// openCoolPlacePopup: the not-official ring's popup — the tier
+// difference is stated in the pin's own words, every time.
+export function openCoolPlacePopup(map, f) {
+  const p = f.properties
+  const el = document.createElement('div')
+  el.className = 'refuge-pop'
+  const name = document.createElement('strong')
+  name.textContent = `${p.icon ?? ''} ${p.name}`.trim()
+  el.appendChild(name)
+  if (p.hours) {
+    const hours = document.createElement('div')
+    hours.textContent = `🕐 ${p.hours}`
+    el.appendChild(hours)
+  }
+  const note = document.createElement('div')
+  note.className = 'note'
+  note.textContent = 'air-conditioned public place, reported on ' +
+    'OpenStreetMap — not an official shelter'
+  el.appendChild(note)
   new maplibregl.Popup({ maxWidth: '280px' })
     .setLngLat(f.geometry.coordinates)
     .setDOMContent(el)

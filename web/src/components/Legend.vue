@@ -31,6 +31,9 @@ const refugeLabel = computed(() => {
     <span><i style="background: rgb(72, 118, 160)" /> water</span>
     <span><i class="mine-chip" /> yours</span>
     <span><i class="pin refuge-chip" /> {{ refugeLabel }}</span>
+    <span><i class="pin osmcool-chip" /> air-conditioned public
+      place (OpenStreetMap, not official; zoom in — unmapped ≠
+      none)</span>
   </div>
   <div v-else class="legend heat">
     <span class="cap">
@@ -45,6 +48,8 @@ const refugeLabel = computed(() => {
     </span>
     <span><i class="pin refuge-chip" /> {{ refugeLabel }}</span>
     <span><i class="pin cool-chip" /> modeled cool island</span>
+    <span><i class="pin osmcool-chip" /> air-conditioned public
+      place (OSM, not official)</span>
   </div>
 </template>
 
@@ -78,6 +83,11 @@ const refugeLabel = computed(() => {
 }
 .legend i.cool-chip {
   background: rgb(58, 122, 84);
+}
+.legend i.osmcool-chip {
+  background: transparent;
+  border: 2px solid rgb(16, 148, 160);
+  box-shadow: none;
 }
 .legend i.block-chip {
   background: transparent;

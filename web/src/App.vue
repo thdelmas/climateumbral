@@ -515,8 +515,10 @@ onMounted(async () => {
         OpenStreetMap contributors. Climate shelters: Ajuntament de
         Barcelona, Open Data BCN (CC BY 4.0); Ville de Paris, Paris
         Data (ODbL); Stadt Wien (CC BY 4.0); Métropole de Lyon
-        (Licence Ouverte) — more city adapters welcome. Claims are
-        pledges; satellites verify the real change.
+        (Licence Ouverte) — more city adapters welcome.
+        Air-conditioned public places: © OpenStreetMap contributors
+        (ODbL). Claims are pledges; satellites verify the real
+        change.
         The ledger stores only what this board shows; erase your acts
         anytime from their pixel. Your location, if you share it,
         stays in your browser.

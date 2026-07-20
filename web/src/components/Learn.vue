@@ -181,10 +181,15 @@
             target="_blank" rel="noopener">here's how to add
           yours</a>). Check hours before you
           go.</li>
+        <li><b>Hollow teal rings</b> (city zoom) — air-conditioned
+          public places: malls, cafés, libraries, pharmacies that
+          people reported on OpenStreetMap. Anyone may walk in, but
+          no city checked them — and an empty street means "nobody
+          mapped it yet", never "nothing cool exists".</li>
         <li><b>Deep-green pins</b> (heat views) — modeled cool
           islands: the green blocks the night model reads as
           coolest. A shaded park, not a promise — no roof, no
-          hours. The two never mix.</li>
+          hours. The three never mix.</li>
         <li><b>Until your block cools:</b> sleep in the coolest
           room, air the home at dawn and seal it against midday,
           drink before you are thirsty, knock on the door of anyone

@@ -62,8 +62,10 @@ var coolPlaceKinds = map[string]bool{
 }
 
 const (
-	coolCellDeg   = 0.02            // cache cell ≈ 1.5 km
-	coolRadiusM   = 2500            // query radius from cell center
+	coolCellDeg   = 0.02            // point-mode cache cell ≈ 1.5 km
+	coolRadiusM   = 2500            // point-mode radius from cell center
+	coolTileDeg   = 0.05            // map-mode tile ≈ 4×5.5 km
+	coolMaxTiles  = 8               // per request — forces city zoom
 	coolPlacesTTL = 24 * time.Hour  // OSM edits are slow-moving
 	coolPlacesErr = 5 * time.Minute // back off failing instances
 )
@@ -130,17 +132,115 @@ func (c *coolPlacesClient) get(lon, lat float64) ([]coolPlace, error) {
 }
 
 func (c *coolPlacesClient) fetch(lon, lat float64) ([]coolPlace, error) {
+	dLat := coolRadiusM / 111320.0
+	dLon := dLat / math.Cos(lat*math.Pi/180)
+	return c.fetchBBox(lat-dLat, lon-dLon, lat+dLat, lon+dLon)
+}
+
+// getTile: one map tile's places, cached like the point cells.
+func (c *coolPlacesClient) getTile(ti, tj int) ([]coolPlace, error) {
+	key := fmt.Sprintf("t:%d,%d", ti, tj)
+	c.mu.Lock()
+	ent, ok := c.cache[key]
+	c.mu.Unlock()
+	if ok && ent.places != nil &&
+		time.Since(ent.fetched) < coolPlacesTTL {
+		return ent.places, nil
+	}
+	if ok && time.Since(ent.tried) < coolPlacesErr {
+		if ent.places != nil {
+			return ent.places, nil
+		}
+		return nil, ent.err
+	}
+	s := float64(tj) * coolTileDeg
+	w := float64(ti) * coolTileDeg
+	places, err := c.fetchBBox(s, w, s+coolTileDeg, w+coolTileDeg)
+	now := time.Now()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if err != nil {
+		c.cache[key] = coolPlacesEntry{
+			places: ent.places, fetched: ent.fetched,
+			tried: now, err: err,
+		}
+		if ent.places != nil {
+			return ent.places, nil
+		}
+		return nil, err
+	}
+	c.cache[key] = coolPlacesEntry{
+		places: places, fetched: now, tried: now,
+	}
+	return places, nil
+}
+
+// getBBox: a viewport's places, assembled from cached tiles fetched
+// concurrently. Partial truth is reported as partial (ok=false per
+// failed tile counted), never silently passed off as complete.
+func (c *coolPlacesClient) getBBox(w, s, e, n float64) (
+	[]coolPlace, bool, error) {
+	i0 := int(math.Floor(w / coolTileDeg))
+	i1 := int(math.Floor(e / coolTileDeg))
+	j0 := int(math.Floor(s / coolTileDeg))
+	j1 := int(math.Floor(n / coolTileDeg))
+	if (i1-i0+1)*(j1-j0+1) > coolMaxTiles {
+		return nil, false, errBBoxTooBig
+	}
+	type result struct {
+		places []coolPlace
+		err    error
+	}
+	var wg sync.WaitGroup
+	results := make([]result, 0, coolMaxTiles)
+	for i := i0; i <= i1; i++ {
+		for j := j0; j <= j1; j++ {
+			results = append(results, result{})
+			r := &results[len(results)-1]
+			wg.Add(1)
+			go func(ti, tj int) {
+				defer wg.Done()
+				r.places, r.err = c.getTile(ti, tj)
+			}(i, j)
+		}
+	}
+	wg.Wait()
+	out := []coolPlace{}
+	seen := map[string]bool{}
+	failed := 0
+	for _, r := range results {
+		if r.err != nil {
+			failed++
+			continue
+		}
+		for _, p := range r.places {
+			key := fmt.Sprintf("%s@%.3f,%.3f", p.Name, p.Lon, p.Lat)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			out = append(out, p)
+		}
+	}
+	if failed == len(results) {
+		return nil, false, errors.New("coolplaces: every tile failed")
+	}
+	return out, failed > 0, nil
+}
+
+var errBBoxTooBig = errors.New("bbox too big — zoom in")
+
+func (c *coolPlacesClient) fetchBBox(s, w, n, e float64) (
+	[]coolPlace, error) {
 	// A global [bbox:...] prefilter, NOT (around:...): around on a
 	// planet-wide tag forces a tag-first scan that timed out on
 	// every instance (32 s and dead); the same search bbox-first
 	// answered in 2 s. Verified live on a loaded instance.
-	dLat := coolRadiusM / 111320.0
-	dLon := dLat / math.Cos(lat*math.Pi/180)
 	q := fmt.Sprintf(`[out:json][timeout:8][bbox:%f,%f,%f,%f];(`+
 		`nwr["air_conditioning"="yes"]["name"];`+
 		`nwr["shop"="mall"]["name"];`+
 		`);out center 80;`,
-		lat-dLat, lon-dLon, lat+dLat, lon+dLon)
+		s, w, n, e)
 	// One overall deadline across every instance: a panicking phone
 	// is waiting on this response, and four hung mirrors must cost
 	// seconds, not two minutes. (Observed live: 4×25 s of hangs.)
@@ -239,14 +339,52 @@ func parseOverpassCoolPlaces(raw []byte) ([]coolPlace, error) {
 	return out, nil // empty is a real answer: nothing tagged here
 }
 
-// handleCoolPlaces: GET /api/coolplaces?lon=&lat= — the not-official
-// ring around one point. 502 on upstream failure so the client can
-// say "unavailable" instead of the false all-clear of an empty list.
+// handleCoolPlaces: GET /api/coolplaces — the not-official ring.
+// Point mode (?lon=&lat=) serves the panic finder; bbox mode
+// (?w=&s=&e=&n=) serves the map viewport, capped to city-zoom tile
+// counts. 502 on upstream failure so the client can say
+// "unavailable" instead of the false all-clear of an empty list;
+// a partially-fetched viewport says so.
 func (s *server) handleCoolPlaces(w http.ResponseWriter, r *http.Request) {
-	lon, errLon := strconv.ParseFloat(r.URL.Query().Get("lon"), 64)
-	lat, errLat := strconv.ParseFloat(r.URL.Query().Get("lat"), 64)
-	if errLon != nil || errLat != nil ||
-		lon < -25 || lon > 45 || lat < 34 || lat > 72 {
+	q := r.URL.Query()
+	inEU := func(lon, lat float64) bool {
+		return lon >= -25 && lon <= 45 && lat >= 34 && lat <= 72
+	}
+	if q.Has("w") {
+		bw, errW := strconv.ParseFloat(q.Get("w"), 64)
+		bs, errS := strconv.ParseFloat(q.Get("s"), 64)
+		be, errE := strconv.ParseFloat(q.Get("e"), 64)
+		bn, errN := strconv.ParseFloat(q.Get("n"), 64)
+		if errW != nil || errS != nil || errE != nil || errN != nil ||
+			bw >= be || bs >= bn ||
+			!inEU(bw, bs) || !inEU(be, bn) {
+			writeJSON(w, http.StatusBadRequest,
+				map[string]any{"error": "bad bbox"})
+			return
+		}
+		places, partial, err := s.coolPlaces.getBBox(bw, bs, be, bn)
+		if errors.Is(err, errBBoxTooBig) {
+			writeJSON(w, http.StatusBadRequest,
+				map[string]any{"error": err.Error()})
+			return
+		}
+		if err != nil {
+			log.Printf("coolplaces bbox: %v", err)
+			writeJSON(w, http.StatusBadGateway, map[string]any{
+				"error": "cool places lookup unavailable"})
+			return
+		}
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+		writeJSON(w, http.StatusOK, map[string]any{
+			"places":      places,
+			"partial":     partial,
+			"attribution": "© OpenStreetMap contributors (ODbL)",
+		})
+		return
+	}
+	lon, errLon := strconv.ParseFloat(q.Get("lon"), 64)
+	lat, errLat := strconv.ParseFloat(q.Get("lat"), 64)
+	if errLon != nil || errLat != nil || !inEU(lon, lat) {
 		writeJSON(w, http.StatusBadRequest,
 			map[string]any{"error": "lon/lat outside Europe"})
 		return

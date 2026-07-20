@@ -14,6 +14,7 @@
 // separate words, so a mall never borrows a city's authority.
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { fetchRefuges } from '../lib/refuges.js'
+import { KIND_ICON } from '../lib/coolplaces.js'
 import { STRINGS, LANGS, pickLang } from '../lib/cooltext.js'
 
 const emit = defineEmits(['close'])
@@ -35,13 +36,6 @@ const note = ref('') // denied/error line above the city buttons
 const results = ref([]) // nearest official shelters, with .km
 const farthest = ref(null) // nearest-known when it is too far to walk
 const others = ref([]) // a/c public places (OSM), with .km
-const KIND_ICON = {
-  mall: '🛍️', department_store: '🏬', supermarket: '🛒',
-  chemist: '💊', pharmacy: '💊', library: '📚',
-  community_centre: '🏠', cinema: '🎬', place_of_worship: '⛪',
-  cafe: '☕', restaurant: '🍽️', fast_food: '🍔', townhall: '🏛️',
-  arts_centre: '🎭', museum: '🏛️', gallery: '🖼️',
-}
 
 let refuges = null // fetched once, on first need
 async function loadRefuges() {

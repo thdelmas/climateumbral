@@ -20,6 +20,8 @@ import { sealedStats } from '../lib/heat.js'
 import { coolSpots, coolSpotsGeojson } from '../lib/coolspots.js'
 import { nearestRefuge, hoursLabel } from '../lib/refuges.js'
 import { renderOverlay } from '../lib/overlay.js'
+import { fetchCoolPlacesBBox, coolPlacesGeojson }
+  from '../lib/coolplaces.js'
 import {
   EMPTY_FC,
   baseStyle,
@@ -28,6 +30,7 @@ import {
   addCoolPlaceLayers,
   pinAt,
   openRefugePopup,
+  openCoolPlacePopup,
 } from '../lib/maplayers.js'
 
 const props = defineProps({
@@ -406,6 +409,33 @@ function goTo(pe, pn) {
   map.jumpTo({ center: pixelCenter(pe, pn), zoom: 16.5 })
 }
 
+// The not-official ring follows the viewport at city zoom. One
+// fetch per settled view (quantized key skips repeats, in-flight
+// guard skips pile-ups); a failed lookup leaves the last data
+// rather than painting false emptiness.
+let coolPlacesKey = ''
+let coolPlacesBusy = false
+async function refreshCoolPlaces() {
+  if (!map || map.getZoom() < PLAY_ZOOM - 0.5 || coolPlacesBusy) {
+    return
+  }
+  const b = map.getBounds()
+  const key = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]
+    .map((v) => v.toFixed(3)).join(',')
+  if (key === coolPlacesKey) return
+  coolPlacesBusy = true
+  try {
+    const res = await fetchCoolPlacesBBox(
+      b.getWest(), b.getSouth(), b.getEast(), b.getNorth())
+    if (res) {
+      coolPlacesKey = key
+      map.getSource('osmcool')?.setData(coolPlacesGeojson(res.places))
+    }
+  } finally {
+    coolPlacesBusy = false
+  }
+}
+
 // shelterTonight flies to the closest official shelter from where
 // the user is looking (tap 📍 first and it is "closest to me").
 // Absence stays honest: no network here is said, not shown as an
@@ -478,6 +508,7 @@ onMounted(() => {
     }
   })
   map.on('moveend', refreshRaster)
+  map.on('moveend', refreshCoolPlaces)
   map.on('click', (e) => {
     // refuge pins show at any zoom, well before the game raster
     const pin = pinAt(map, e.point)
@@ -492,6 +523,10 @@ onMounted(() => {
     }
     if (pin?.layer.id === 'refuges') {
       openRefugePopup(map, pin)
+      return
+    }
+    if (pin?.layer.id === 'osmcool') {
+      openCoolPlacePopup(map, pin)
       return
     }
     if (map.getZoom() < PLAY_ZOOM) return
