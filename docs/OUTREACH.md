@@ -26,9 +26,15 @@ visible al mapa.
 - Cercador d'emergència (5 idiomes, sense app ni compte):
   https://climateumbral.eu/#cool
 
-Us demanem una sola cosa: si us sembla útil, enllaceu-lo des de la
-vostra pàgina d'onada de calor — i aviseu-nos si el format del
-dataset canvia (GitHub: github.com/thdelmas/climateumbral).
+Ens interessa molt el vostre criteri: representa bé el mapa la
+vostra xarxa? Hi ha res incorrecte o que hi falti (horaris, equipa-
+ments, com en descrivim l'ús)? Responeu aquest correu amb qualsevol
+esmena i la corregirem de seguida — sou l'autoritat sobre aquestes
+dades.
+
+I si us sembla útil, una sola petició: enllaceu-lo des de la vostra
+pàgina d'onada de calor, i aviseu-nos si el format del dataset
+canvia (GitHub: github.com/thdelmas/climateumbral).
 
 Gràcies per publicar dades obertes que salven vides,
 [signatura]
@@ -54,7 +60,13 @@ affichée.
 - Chercheur d'urgence (5 langues, sans application, sans compte) :
   https://climateumbral.eu/#cool
 
-Une seule demande : si l'outil vous semble utile, un lien depuis
+Votre avis nous importe : la carte représente-t-elle fidèlement
+votre réseau ? Quelque chose d'inexact ou de manquant (horaires,
+équipements, la manière dont nous en décrivons l'usage) ? Répondez
+à ce courriel avec toute correction — vous êtes l'autorité sur ces
+données, nous corrigerons immédiatement.
+
+Et si l'outil vous semble utile, une seule demande : un lien depuis
 votre page canicule aiderait les personnes les plus vulnérables à
 le trouver — et prévenez-nous si le format du jeu de données évolue
 (GitHub : github.com/thdelmas/climateumbral).
@@ -80,9 +92,15 @@ mit Öffnungszeiten und mit sichtbarer Attribution der Stadt Wien.
 - Notfall-Finder (5 Sprachen, ohne App, ohne Konto):
   https://climateumbral.eu/#cool
 
-Eine einzige Bitte: Wenn Sie das Werkzeug nützlich finden, würde
-ein Link von Ihrer Hitze-Seite den verletzlichsten Menschen helfen,
-es zu finden — und sagen Sie uns Bescheid, wenn sich das
+Ihr Urteil interessiert uns: Stellt die Karte Ihr Netz korrekt
+dar? Stimmt etwas nicht oder fehlt (Öffnungszeiten, Standorte, wie
+wir die Nutzung beschreiben)? Antworten Sie einfach auf diese
+E-Mail — Sie sind die Autorität über diese Daten, wir korrigieren
+umgehend.
+
+Und wenn Sie das Werkzeug nützlich finden, eine einzige Bitte: Ein
+Link von Ihrer Hitze-Seite würde den verletzlichsten Menschen
+helfen, es zu finden — und sagen Sie uns Bescheid, wenn sich das
 Datenformat ändert (GitHub: github.com/thdelmas/climateumbral).
 
 Danke, dass Sie offene Daten veröffentlichen, die Leben retten,
@@ -107,8 +125,13 @@ en ligne, avec l'attribution de la Métropole affichée.
 - Chercheur d'urgence (5 langues, sans application, sans compte) :
   https://climateumbral.eu/#cool
 
-Une seule demande : un lien depuis votre page fortes chaleurs, si
-l'outil vous semble utile — et un signalement si le format de la
+Votre avis nous importe : la carte représente-t-elle fidèlement
+vos équipements ? Quelque chose d'inexact ou de manquant ? Répondez
+à ce courriel avec toute correction — vous êtes l'autorité sur ces
+données, nous corrigerons immédiatement.
+
+Et si l'outil vous semble utile, une seule demande : un lien depuis
+votre page fortes chaleurs — et un signalement si le format de la
 couche évolue (GitHub : github.com/thdelmas/climateumbral).
 
 Merci de publier des données ouvertes qui sauvent des vies,
@@ -136,6 +159,11 @@ we will put every Athenian shelter on the map, free, within days.
 Meanwhile https://climateumbral.eu/athens already shows
 air-conditioned public places from OpenStreetMap.
 
+We would also genuinely value your view: does this approach fit how
+Athens thinks about heat protection? What would make it more useful
+to your residents? A reply to this email reaches the people who
+build it.
+
 Thank you,
 [signature]
 
@@ -161,6 +189,11 @@ github.com/thdelmas/climateumbral/blob/main/docs/FOR_CITIES.md —
 metteremo ogni rifugio milanese sulla mappa, gratuitamente, in
 pochi giorni. Intanto https://climateumbral.eu/milano mostra già i
 luoghi pubblici climatizzati da OpenStreetMap.
+
+Ci interessa anche il vostro parere: questo approccio è coerente
+con il piano caldo di Milano? Cosa lo renderebbe più utile ai
+vostri residenti? Rispondere a questa mail raggiunge direttamente
+chi lo costruisce.
 
 Grazie,
 [firma]
@@ -196,6 +229,11 @@ EXTREMA). Si se publica como dato abierto — cualquier formato, los
 requisitos en una página:
 github.com/thdelmas/climateumbral/blob/main/docs/FOR_CITIES.md —
 pondremos cada refugio en el mapa, gratis, en días.
+
+También nos interesa vuestra opinión: ¿encaja este enfoque con el
+plan de calor de Palma? ¿Qué lo haría más útil para vuestros
+vecinos? Responder a este correo llega directamente a quienes lo
+construyen.
 
 Gracias,
 [firma]
@@ -246,3 +284,7 @@ github.com/thdelmas/climateumbral.
   care more.
 - After each send, watch https://climateumbral.eu/api/stats for
   the matching page_{city} counter.
+- Every email now asks for feedback — treat any reply, even a
+  correction, as the win: a city that corrects one shelter's hours
+  has adopted the map. Corrections land fastest filed as GitHub
+  issues with the city named.
