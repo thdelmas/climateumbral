@@ -11,6 +11,7 @@ import Legend from './components/Legend.vue'
 import MapControls from './components/MapControls.vue'
 import Learn from './components/Learn.vue'
 import Resources from './components/Resources.vue'
+import SuggestBox from './components/SuggestBox.vue'
 import { meanPenalty, greenSealedSpread, flipsPerDegree, DAY_COEF,
   NIGHT_COEF } from './lib/heat.js'
 import { inEurope } from './lib/proj.js'
@@ -510,6 +511,8 @@ onMounted(async () => {
     <Learn />
 
     <Resources />
+
+    <SuggestBox />
     </main>
 
     <footer>

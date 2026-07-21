@@ -226,6 +226,29 @@ export function openRefugePopup(map, f) {
     a.textContent = 'official page ↗'
     el.appendChild(a)
   }
+  // one-tap crowd verification, same vocabulary as the finder
+  const [lon, lat] = f.geometry.coordinates
+  const target =
+    `refuge:${p.src}:${lon.toFixed(4)},${lat.toFixed(4)}`
+  const row = document.createElement('div')
+  row.className = 'report-row'
+  for (const [issue, label] of [
+    ['closed', 'closed?'], ['hours', 'wrong hours?'],
+    ['good', '👍'],
+  ]) {
+    const b = document.createElement('button')
+    b.textContent = label
+    b.addEventListener('click', () => {
+      fetch('/api/report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target, issue }),
+      }).catch(() => {})
+      row.textContent = 'noted — thank you'
+    })
+    row.appendChild(b)
+  }
+  el.appendChild(row)
   new maplibregl.Popup({ maxWidth: '280px' })
     .setLngLat(f.geometry.coordinates)
     .setDOMContent(el)
@@ -251,6 +274,14 @@ export function openCoolPlacePopup(map, f) {
   note.textContent = 'air-conditioned public place, reported on ' +
     'OpenStreetMap — not an official shelter'
   el.appendChild(note)
+  if (p.osm) {
+    const a = document.createElement('a')
+    a.href = 'https://www.openstreetmap.org/' + p.osm
+    a.target = '_blank'
+    a.rel = 'noopener noreferrer'
+    a.textContent = 'wrong? fix it on OpenStreetMap ↗'
+    el.appendChild(a)
+  }
   new maplibregl.Popup({ maxWidth: '280px' })
     .setLngLat(f.geometry.coordinates)
     .setDOMContent(el)

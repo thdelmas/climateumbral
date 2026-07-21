@@ -39,6 +39,7 @@ export function coolPlacesGeojson(places) {
         kind: p.kind,
         icon: KIND_ICON[p.kind] ?? '🏢',
         hours: p.hours ?? '',
+        osm: p.osm ?? '',
         tip: `${p.name} — air-conditioned, not an official shelter`,
       },
     })),

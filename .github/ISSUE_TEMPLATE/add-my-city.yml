@@ -1,0 +1,26 @@
+name: Add my city
+description: Get a city's climate-shelter network on the map
+title: "[city] "
+labels: [city-adapter]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        One page tells you (or your city) exactly what to publish:
+        [docs/FOR_CITIES.md](https://github.com/thdelmas/climateumbral/blob/main/docs/FOR_CITIES.md)
+  - type: input
+    id: city
+    attributes:
+      label: City
+    validations:
+      required: true
+  - type: input
+    id: dataset
+    attributes:
+      label: Dataset URL (if one exists)
+      description: The direct download/API link, not the portal home
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: License, update cadence, a contact — anything you know

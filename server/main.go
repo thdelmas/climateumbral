@@ -46,6 +46,8 @@ type server struct {
 	refuges     *refugeClient
 	coolPlaces  *coolPlacesClient
 	counters    *counters
+	reports     *reportStore
+	suggestPath string
 	hub         *hub
 	limiter     *limiter
 	readLimiter *limiter
@@ -137,12 +139,14 @@ func main() {
 
 	expiry := time.Duration(*expiryDays) * 24 * time.Hour
 	s := &server{
-		eea:        newEEA(),
-		anchors:    newAnchors(),
-		refuges:    newRefuges(),
-		coolPlaces: newCoolPlaces(),
-		counters:   newCounters(filepath.Join(*dataDir, "counters.json")),
-		hub:        newHub(),
+		eea:         newEEA(),
+		anchors:     newAnchors(),
+		refuges:     newRefuges(),
+		coolPlaces:  newCoolPlaces(),
+		counters:    newCounters(filepath.Join(*dataDir, "counters.json")),
+		reports:     newReports(filepath.Join(*dataDir, "reports.json")),
+		suggestPath: filepath.Join(*dataDir, "suggestions.jsonl"),
+		hub:         newHub(),
 		// ~12 acts/min after a burst of 5; reads get a budget an
 		// honest map never exhausts but a tight loop does
 		limiter:     newLimiter(0.2, 5),
@@ -185,6 +189,10 @@ func main() {
 	}
 	mux.HandleFunc("GET /api/health", health)
 	mux.HandleFunc("POST /api/ping", s.rlimit(s.handlePing))
+	mux.HandleFunc("POST /api/report", s.limit(s.handleReport))
+	mux.HandleFunc("GET /api/reports", s.rlimit(s.handleReports))
+	mux.HandleFunc("POST /api/suggest", s.limit(s.handleSuggest))
+	mux.HandleFunc("GET /api/suggestions", s.rlimit(s.handleSuggestions))
 	mux.HandleFunc("GET /api/stats", s.rlimit(s.handleStats))
 	mux.HandleFunc("GET /sitemap.xml", handleSitemap)
 	mux.HandleFunc("GET /robots.txt", handleRobots)
@@ -192,6 +200,7 @@ func main() {
 		mux.HandleFunc("GET /"+c.Slug, s.rlimit(s.cityPageHandler(c)))
 	}
 	go s.counters.persistLoop()
+	go s.reports.persistLoop()
 	if *dist != "" {
 		mux.Handle("/", spaHandler(*dist))
 	}

@@ -84,7 +84,7 @@ Each of these is live in a real city feed we've integrated:
 
 Once the dataset is public (or if it already is), open an issue at
 [github.com/thdelmas/climateumbral](https://github.com/thdelmas/climateumbral/issues)
-— or email the maintainer — with:
+— or email **contact@climateumbral.eu** — with:
 
 1. **Dataset URL** — the direct download/API link, not just the portal
    page.

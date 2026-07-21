@@ -199,6 +199,26 @@ const ping = (e) => {
   } catch { /* counting must never break the panic path */ }
 }
 
+// One-tap crowd verification: fixed issues only, no text, no
+// identity — and the counts are public (/api/reports). "good" is
+// as much verification as "closed".
+const reportOpen = ref(null) // target key with the row expanded
+const reported = ref({}) // target -> true after a report
+const refugeTarget = (r) =>
+  `refuge:${r.src}:${r.lon.toFixed(4)},${r.lat.toFixed(4)}`
+function sendReport(target, issue) {
+  reported.value = { ...reported.value, [target]: true }
+  reportOpen.value = null
+  try {
+    fetch('/api/report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target, issue }),
+      keepalive: true,
+    }).catch(() => {})
+  } catch { /* reporting must never break the panic path */ }
+}
+
 // The caregiver loop: the person who opens this screen is often not
 // the person who needs it next. Native share sheet where phones
 // have one; clipboard everywhere else.
@@ -287,6 +307,22 @@ onUnmounted(() => {
           <a class="big route" :href="routeURL(r)" target="_blank"
             rel="noopener" @click="ping('cool_route')">➜
             {{ t.route }}</a>
+          <p v-if="reported[refugeTarget(r)]" class="thanks">
+            {{ t.thanksR }}</p>
+          <button v-else-if="reportOpen !== refugeTarget(r)"
+            class="reportq"
+            @click="reportOpen = refugeTarget(r)">
+            ⚠ {{ t.reportQ }}</button>
+          <div v-else class="reportrow">
+            <button @click="sendReport(refugeTarget(r), 'closed')">
+              {{ t.rClosed }}</button>
+            <button @click="sendReport(refugeTarget(r), 'hours')">
+              {{ t.rHours }}</button>
+            <button @click="sendReport(refugeTarget(r), 'location')">
+              {{ t.rLoc }}</button>
+            <button @click="sendReport(refugeTarget(r), 'good')">
+              {{ t.rGood }}</button>
+          </div>
         </div>
         <p class="hours">{{ t.hours }}</p>
       </template>
@@ -320,6 +356,9 @@ onUnmounted(() => {
           <a class="big route" :href="routeURL(p)" target="_blank"
             rel="noopener" @click="ping('cool_route')">➜
             {{ t.route }}</a>
+          <a v-if="p.osm" class="osmfix"
+            :href="'https://www.openstreetmap.org/' + p.osm"
+            target="_blank" rel="noopener">{{ t.fixOsm }} ↗</a>
         </div>
         <p class="hours">© OpenStreetMap contributors</p>
       </template>
@@ -534,6 +573,47 @@ h2 {
   background: var(--card);
   color: var(--ink);
   border: 2px solid var(--line);
+}
+.reportq {
+  margin-top: 10px;
+  font: inherit;
+  font-size: 15px;
+  color: var(--ink-2);
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  cursor: pointer;
+  padding: 6px 0;
+}
+.reportrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.reportrow button {
+  font: inherit;
+  font-size: 15px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  cursor: pointer;
+  min-height: 44px;
+}
+.thanks {
+  margin-top: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.osmfix {
+  display: block;
+  margin-top: 8px;
+  font-size: 14.5px;
+  color: var(--ink-2);
 }
 @media (prefers-color-scheme: dark) {
   .find,

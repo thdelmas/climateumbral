@@ -280,6 +280,8 @@ github.com/thdelmas/climateumbral.
 
 - Verify each recipient address on the portal's own contact page
   before sending; none are listed here by design.
+- Send from (or CC) contact@climateumbral.eu so replies stay
+  reachable to whoever maintains the project.
 - Send city emails on a hot-forecast week if possible — inboxes
   care more.
 - After each send, watch https://climateumbral.eu/api/stats for

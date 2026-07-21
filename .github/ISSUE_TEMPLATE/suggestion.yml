@@ -1,0 +1,11 @@
+name: Suggestion
+description: An idea to make the map more useful
+title: "[idea] "
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+      description: What would it help you (or someone you know) do?
+    validations:
+      required: true

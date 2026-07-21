@@ -1,0 +1,29 @@
+name: Data correction
+description: A shelter or cool place on the map is wrong
+title: "[data] "
+labels: [data]
+body:
+  - type: input
+    id: place
+    attributes:
+      label: Which place?
+      description: Name and city, or a map permalink
+    validations:
+      required: true
+  - type: dropdown
+    id: issue
+    attributes:
+      label: What is wrong?
+      options:
+        - It is closed / does not exist
+        - Opening hours are wrong
+        - Location on the map is wrong
+        - It is not actually cool inside
+        - Something else (explain below)
+    validations:
+      required: true
+  - type: textarea
+    id: detail
+    attributes:
+      label: Details
+      description: What should it say instead? A source helps.

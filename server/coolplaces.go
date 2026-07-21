@@ -31,6 +31,9 @@ type coolPlace struct {
 	Name  string  `json:"name"`
 	Kind  string  `json:"kind"`
 	Hours string  `json:"hours,omitempty"`
+	// Osm ("node/123") routes corrections upstream to where the
+	// data actually lives — every reporter is a potential mapper.
+	Osm string `json:"osm,omitempty"`
 }
 
 // Public instances, tried in order. Overpass 504s under summer load
@@ -293,6 +296,8 @@ func parseOverpassCoolPlaces(raw []byte) ([]coolPlace, error) {
 		// tagged here". Seen live: two city centres "empty".
 		Remark   string `json:"remark"`
 		Elements []struct {
+			Type   string  `json:"type"`
+			ID     int64   `json:"id"`
 			Lon    float64 `json:"lon"`
 			Lat    float64 `json:"lat"`
 			Center *struct {
@@ -331,9 +336,14 @@ func parseOverpassCoolPlaces(raw []byte) ([]coolPlace, error) {
 			continue
 		}
 		seen[key] = true
+		osm := ""
+		if e.Type != "" && e.ID != 0 {
+			osm = fmt.Sprintf("%s/%d", e.Type, e.ID)
+		}
 		out = append(out, coolPlace{
 			Lon: lon, Lat: lat, Name: name, Kind: kind,
 			Hours: strings.TrimSpace(e.Tags["opening_hours"]),
+			Osm:   osm,
 		})
 	}
 	return out, nil // empty is a real answer: nothing tagged here
