@@ -45,6 +45,7 @@ type server struct {
 	anchors     *anchorClient
 	refuges     *refugeClient
 	coolPlaces  *coolPlacesClient
+	counters    *counters
 	hub         *hub
 	limiter     *limiter
 	readLimiter *limiter
@@ -140,6 +141,7 @@ func main() {
 		anchors:    newAnchors(),
 		refuges:    newRefuges(),
 		coolPlaces: newCoolPlaces(),
+		counters:   newCounters(filepath.Join(*dataDir, "counters.json")),
 		hub:        newHub(),
 		// ~12 acts/min after a burst of 5; reads get a budget an
 		// honest map never exhausts but a tight loop does
@@ -182,6 +184,14 @@ func main() {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
 	mux.HandleFunc("GET /api/health", health)
+	mux.HandleFunc("POST /api/ping", s.rlimit(s.handlePing))
+	mux.HandleFunc("GET /api/stats", s.rlimit(s.handleStats))
+	mux.HandleFunc("GET /sitemap.xml", handleSitemap)
+	mux.HandleFunc("GET /robots.txt", handleRobots)
+	for _, c := range cityPages {
+		mux.HandleFunc("GET /"+c.Slug, s.rlimit(s.cityPageHandler(c)))
+	}
+	go s.counters.persistLoop()
 	if *dist != "" {
 		mux.Handle("/", spaHandler(*dist))
 	}

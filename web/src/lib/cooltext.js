@@ -43,6 +43,8 @@ export const STRINGS = {
     far: 'No official climate shelter published near you — your ' +
       'city has not shared its list yet.',
     farNearest: 'Nearest known official shelter:',
+    share: 'Send this to someone',
+    copied: 'Link copied',
     back: 'Back to the map',
   },
   fr: {
@@ -81,6 +83,8 @@ export const STRINGS = {
     far: 'Aucun refuge climatique officiel publié près de vous — ' +
       'votre ville n’a pas encore partagé sa liste.',
     farNearest: 'Refuge officiel connu le plus proche :',
+    share: 'Envoyez ceci à quelqu’un',
+    copied: 'Lien copié',
     back: 'Retour à la carte',
   },
   es: {
@@ -119,6 +123,8 @@ export const STRINGS = {
     far: 'No hay refugios climáticos oficiales publicados cerca — ' +
       'tu ciudad aún no ha compartido su lista.',
     farNearest: 'Refugio oficial conocido más cercano:',
+    share: 'Envía esto a alguien',
+    copied: 'Enlace copiado',
     back: 'Volver al mapa',
   },
   ca: {
@@ -157,6 +163,8 @@ export const STRINGS = {
     far: 'No hi ha refugis climàtics oficials publicats a prop — ' +
       'la teva ciutat encara no ha compartit la llista.',
     farNearest: 'Refugi oficial conegut més proper:',
+    share: 'Envia això a algú',
+    copied: 'Enllaç copiat',
     back: 'Tornar al mapa',
   },
   de: {
@@ -195,6 +203,8 @@ export const STRINGS = {
     far: 'Kein offizieller kühler Ort in Ihrer Nähe ' +
       'veröffentlicht — Ihre Stadt teilt ihre Liste noch nicht.',
     farNearest: 'Nächster bekannter offizieller Ort:',
+    share: 'Schicken Sie das jemandem',
+    copied: 'Link kopiert',
     back: 'Zurück zur Karte',
   },
 }

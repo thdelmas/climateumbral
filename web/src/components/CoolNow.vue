@@ -134,6 +134,7 @@ function stopWatch() {
 }
 
 async function useMyLocation() {
+  ping('cool_locate')
   note.value = ''
   if (!navigator.geolocation) {
     note.value = t.value.locFail
@@ -184,11 +185,46 @@ const routeURL = (r) =>
   'https://www.google.com/maps/dir/?api=1&destination=' +
   `${r.lat},${r.lon}&travelmode=walking`
 
+// ping: a bare event name to our own server, nothing else — the
+// whole-number tallies are public at /api/stats. No IPs, no IDs,
+// no coordinates ever ride along.
+const ping = (e) => {
+  try {
+    fetch('/api/ping', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ e }),
+      keepalive: true,
+    }).catch(() => {})
+  } catch { /* counting must never break the panic path */ }
+}
+
+// The caregiver loop: the person who opens this screen is often not
+// the person who needs it next. Native share sheet where phones
+// have one; clipboard everywhere else.
+const SHARE_URL = 'https://climateumbral.eu/#cool'
+const justCopied = ref(false)
+async function share() {
+  ping('cool_share')
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: t.value.title, url: SHARE_URL })
+      return
+    } catch { /* user closed the sheet — fall through to copy */ }
+  }
+  try {
+    await navigator.clipboard.writeText(SHARE_URL)
+    justCopied.value = true
+    setTimeout(() => (justCopied.value = false), 2500)
+  } catch { /* no clipboard either — the URL is in the bar */ }
+}
+
 // The page behind must not move: a shaky swipe that scroll-chains
 // out of this screen strands the user back on the instrument.
 onMounted(() => {
   loadRefuges() // warm the list while the user reads the first screen
   document.documentElement.style.overflow = 'hidden'
+  ping('cool_open')
 })
 onUnmounted(() => {
   stopWatch() // no orphan GPS tracking after the screen closes
@@ -249,7 +285,8 @@ onUnmounted(() => {
           </div>
           <div v-if="r.addr" class="addr">{{ r.addr }}</div>
           <a class="big route" :href="routeURL(r)" target="_blank"
-            rel="noopener">➜ {{ t.route }}</a>
+            rel="noopener" @click="ping('cool_route')">➜
+            {{ t.route }}</a>
         </div>
         <p class="hours">{{ t.hours }}</p>
       </template>
@@ -281,7 +318,8 @@ onUnmounted(() => {
           </div>
           <div v-if="p.hours" class="status">🕐 {{ p.hours }}</div>
           <a class="big route" :href="routeURL(p)" target="_blank"
-            rel="noopener">➜ {{ t.route }}</a>
+            rel="noopener" @click="ping('cool_route')">➜
+            {{ t.route }}</a>
         </div>
         <p class="hours">© OpenStreetMap contributors</p>
       </template>
@@ -295,6 +333,9 @@ onUnmounted(() => {
         </ul>
         <p class="danger">{{ t.tips[3] }}</p>
         <a class="big call" href="tel:112">📞 {{ t.call }}</a>
+        <button class="big sharebtn" @click="share">
+          📤 {{ justCopied ? t.copied : t.share }}
+        </button>
       </section>
     </div>
   </div>
@@ -488,6 +529,11 @@ h2 {
 .call {
   background: var(--err);
   color: #ffffff;
+}
+.sharebtn {
+  background: var(--card);
+  color: var(--ink);
+  border: 2px solid var(--line);
 }
 @media (prefers-color-scheme: dark) {
   .find,

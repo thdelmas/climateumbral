@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Press kit — ClimateUmbral</title>
+<meta name="description" content="Fact sheet: ClimateUmbral maps
+official climate shelters and air-conditioned public places across
+Europe, with a one-tap finder in five languages.">
+<style>
+:root{--bg:#f4f6f2;--ink:#232a26;--ink2:#5a655e;--card:#fbfcfa;
+--line:#d8ded8;--accent:#2e6b3e}
+@media (prefers-color-scheme: dark){:root{--bg:#171b18;--ink:#e6ebe6;
+--ink2:#a7b1a9;--card:#1e231f;--line:#2e352f;--accent:#7fb98a}}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);line-height:1.55;
+font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;
+padding:32px 16px 64px}
+main{max-width:640px;margin:0 auto}
+h1{font-size:28px;margin-bottom:4px}
+h2{font-size:19px;margin:26px 0 8px}
+p,li{font-size:16px;margin:8px 0}
+ul{padding-left:20px}
+.lead{color:var(--ink2)}
+table{border-collapse:collapse;margin:10px 0;width:100%}
+td,th{border:1px solid var(--line);padding:6px 10px;font-size:15px;
+text-align:left}
+a{color:var(--accent)}
+code{background:var(--card);border:1px solid var(--line);
+padding:1px 6px;border-radius:6px;font-size:14px}
+.fact{background:var(--card);border:1px solid var(--line);
+border-radius:12px;padding:12px 16px;margin:10px 0}
+</style>
+</head>
+<body>
+<main>
+<h1>ClimateUmbral — press kit</h1>
+<p class="lead">The map of official climate shelters and cool
+places across Europe — with a one-tap finder for people who are too
+hot right now, in five languages. Free, open source, no accounts,
+no tracking.</p>
+
+<h2>The one-paragraph version</h2>
+<p>Heat killed an estimated 61,700 people in Europe in the summer
+of 2022 (Ballester et al., <i>Nature Medicine</i>). Cities respond
+with climate-shelter networks — cooled public rooms — but each city
+publishes its list separately, if at all. ClimateUmbral aggregates
+them onto one map: <b>939 official climate shelters</b> from
+Barcelona, Paris, Vienna and Grand Lyon (from each city's own open
+data, refreshed continuously), plus air-conditioned public places
+across all of Europe from OpenStreetMap. A panic-simple finder at
+<a href="https://climateumbral.eu/#cool">climateumbral.eu/#cool</a>
+locates the nearest cool room in one tap, shows opening hours and
+walking directions, and speaks English, Spanish, Catalan, French
+and German.</p>
+
+<h2>Verifiable facts</h2>
+<div class="fact"><b>939</b> official climate shelters on the map,
+from four municipal open datasets: Barcelona (543, Xarxa de refugis
+climàtics), Paris (279, Îlots de fraîcheur), Vienna (36, Coole
+Zonen), Grand Lyon (81, équipements publics climatisés).</div>
+<div class="fact"><b>Europe-wide</b> second tier: air-conditioned
+public places (malls, libraries, pharmacies, cafés) from
+OpenStreetMap's <code>air_conditioning</code> tag — verified
+rendering in 16 cities from Sevilla to Warsaw, including cities
+with no official shelter list.</div>
+<div class="fact"><b>Zero data custody</b>: no accounts, no
+cookies-for-tracking, geolocation never leaves the browser. Usage
+statistics are bare public counters:
+<a href="https://climateumbral.eu/api/stats">/api/stats</a>.</div>
+<div class="fact"><b>Open</b>: Apache-2.0 source at
+<a href="https://github.com/thdelmas/climateumbral">github.com/thdelmas/climateumbral</a>;
+every data source attributed and documented, including a
+<a href="https://github.com/thdelmas/climateumbral/blob/main/docs/FOR_CITIES.md">
+guide for cities</a> that want their network added.</div>
+
+<h2>The underlying science</h2>
+<ul>
+<li>Ballester et al., <i>Nature Medicine</i> 2023 — 61,672
+heat-related deaths in Europe, summer 2022.</li>
+<li>Iungman et al., <i>The Lancet</i> 2023 — over 4% of summer
+deaths in 93 European cities attributable to urban heat islands;
+30% tree cover could prevent about a third.</li>
+<li>Ballester et al., <i>Nature Medicine</i> 2024 — adaptation
+measurably reduces deaths at equal temperatures.</li>
+</ul>
+
+<h2>Story angles</h2>
+<ul>
+<li><b>Service</b>: "Where to cool down in [city] this week" — the
+finder answers it for any European city, with hours.</li>
+<li><b>Accountability</b>: which cities publish their shelter
+networks as open data — and which don't (most don't).</li>
+<li><b>Crowd</b>: every OpenStreetMap contributor who tags a cool
+café improves the map for their whole city.</li>
+</ul>
+
+<h2>Assets & contact</h2>
+<ul>
+<li>Live site: <a href="https://climateumbral.eu">climateumbral.eu</a>
+— screenshots may be reproduced freely (data attributions apply,
+shown on the map).</li>
+<li>Printable poster:
+<a href="https://climateumbral.eu/poster.html">climateumbral.eu/poster.html</a></li>
+<li>Contact: via
+<a href="https://github.com/thdelmas/climateumbral/issues">GitHub</a>.</li>
+</ul>
+</main>
+</body>
+</html>

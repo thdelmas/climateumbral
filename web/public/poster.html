@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Too hot? — poster — ClimateUmbral</title>
+<meta name="robots" content="index, follow">
+<style>
+/* One poster for all of Europe: five headline languages, one QR.
+   Print it (A4, portrait) and hang it where hot people pass —
+   pharmacies, libraries, senior centres, community boards. */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system,
+    'Segoe UI', sans-serif;
+  background: #e8ebe6;
+  color: #232a26;
+}
+.sheet {
+  width: 210mm;
+  min-height: 296mm;
+  margin: 0 auto;
+  background: #ffffff;
+  padding: 18mm 16mm 12mm;
+  display: flex;
+  flex-direction: column;
+}
+.hot {
+  font-size: 34pt;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+.hot small {
+  display: block;
+  font-size: 13pt;
+  font-weight: 600;
+  color: #5a655e;
+  margin: 1mm 0 4mm;
+}
+.qrbox {
+  margin: 8mm auto;
+  text-align: center;
+}
+.qrbox img {
+  width: 78mm;
+  height: 78mm;
+  image-rendering: pixelated;
+}
+.url {
+  font-size: 17pt;
+  font-weight: 800;
+  text-align: center;
+  color: #2e6b3e;
+}
+.what {
+  margin-top: 7mm;
+  font-size: 12.5pt;
+  line-height: 1.5;
+  color: #232a26;
+}
+.what b { color: #2e6b3e; }
+.free {
+  margin-top: 4mm;
+  font-size: 11pt;
+  color: #5a655e;
+}
+footer {
+  margin-top: auto;
+  padding-top: 5mm;
+  border-top: 1px solid #d8ded8;
+  font-size: 9pt;
+  color: #667069;
+  display: flex;
+  justify-content: space-between;
+}
+.printbar {
+  max-width: 210mm;
+  margin: 12px auto;
+  text-align: center;
+}
+.printbar button {
+  font: inherit;
+  font-size: 16px;
+  padding: 10px 22px;
+  border-radius: 10px;
+  border: 1px solid #d8ded8;
+  background: #2e6b3e;
+  color: #fff;
+  cursor: pointer;
+}
+@media print {
+  body { background: #ffffff; }
+  .printbar { display: none; }
+  .sheet { margin: 0; padding: 14mm 14mm 10mm; }
+  @page { size: A4 portrait; margin: 0; }
+}
+</style>
+</head>
+<body>
+<div class="printbar">
+  <button onclick="window.print()">🖨 Print this poster (A4)</button>
+</div>
+<div class="sheet">
+  <div class="hot">
+    Too hot? <small>Find a cool place near you — free.</small>
+    ¿Demasiado calor? <small>Encuentra un lugar fresco cerca —
+      gratis.</small>
+    Trop chaud ? <small>Trouvez un lieu frais près de chez vous —
+      gratuit.</small>
+    Massa calor? <small>Troba un lloc fresc a prop teu —
+      gratuït.</small>
+    Zu heiß? <small>Finden Sie einen kühlen Ort in Ihrer Nähe —
+      kostenlos.</small>
+  </div>
+  <div class="qrbox">
+    <img src="/qr-cool.png" alt="QR code to climateumbral.eu/#cool">
+    <div class="url">climateumbral.eu</div>
+  </div>
+  <div class="what">
+    <b>Official climate shelters</b> · refugios climáticos ·
+    refuges climatiques · refugis climàtics · Coole Zonen —
+    and air-conditioned public places from OpenStreetMap,
+    with walking directions.
+  </div>
+  <p class="free">
+    No app. No account. No tracking. Works on any phone, in
+    EN&nbsp;·&nbsp;ES&nbsp;·&nbsp;CA&nbsp;·&nbsp;FR&nbsp;·&nbsp;DE.
+    Emergency? Call 112.
+  </p>
+  <footer>
+    <span>climateumbral.eu — open data, open source</span>
+    <span>Data: cities of Barcelona, Paris, Wien, Grand Lyon ·
+      © OpenStreetMap contributors</span>
+  </footer>
+</div>
+</body>
+</html>
