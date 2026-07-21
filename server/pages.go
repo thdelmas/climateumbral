@@ -276,7 +276,7 @@ footer a{color:var(--ink2)}
 <h1>{{.H1}}</h1>
 <p>{{.Intro}}</p>
 <a class="btn finder" href="/#cool">{{.CtaFinder}}</a>
-<a class="btn map" href="/#map">{{.CtaMap}}</a>
+<a class="btn map" href="/{{.MapHash}}">{{.CtaMap}}</a>
 <p>{{.SheltersLine}}</p>
 <div class="advice">{{.Advice}}</div>
 <footer>
@@ -324,10 +324,16 @@ func (s *server) cityPageHandler(c cityPage) http.HandlerFunc {
 		if count > 0 {
 			line = fmt.Sprintf(t.Shelters, count)
 		}
+		// The map CTA must arrive IN the city, not on the
+		// continent: link the map's own #pe,pn permalink.
+		E, N := toLAEA(c.Lon, c.Lat)
+		mapHash := fmt.Sprintf("#%d,%d",
+			int(E/10), int(N/10))
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "public, max-age=3600")
 		_ = cityTmpl.Execute(w, map[string]any{
 			"Lang":         c.Lang,
+			"MapHash":      mapHash,
 			"Slug":         c.Slug,
 			"Title":        fmt.Sprintf(t.Title, c.Name),
 			"H1":           fmt.Sprintf(t.H1, c.Name),
