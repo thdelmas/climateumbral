@@ -47,6 +47,7 @@ func (s *server) handleSuggest(w http.ResponseWriter, r *http.Request) {
 	}
 	defer f.Close()
 	_, _ = f.Write(append(line, '\n'))
+	s.notify.event("suggestions")
 	w.WriteHeader(http.StatusNoContent)
 }
 

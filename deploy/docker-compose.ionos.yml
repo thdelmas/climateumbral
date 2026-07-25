@@ -8,9 +8,14 @@ services:
       climateumbral-server -addr :8080 -data /data -dist /srv/dist
       -trust-proxy
     environment:
-      # moderation: set in /etc/default/climateumbral on the box
-      # (the auto-deploy unit exports it); empty = off
+      # moderation + feedback mail: set in /etc/default/climateumbral
+      # on the box (the auto-deploy unit exports it); empty = off
       - CLIMATEUMBRAL_ADMIN_TOKEN=${CLIMATEUMBRAL_ADMIN_TOKEN:-}
+      - CLIMATEUMBRAL_SMTP_HOST=${CLIMATEUMBRAL_SMTP_HOST:-}
+      - CLIMATEUMBRAL_SMTP_PORT=${CLIMATEUMBRAL_SMTP_PORT:-}
+      - CLIMATEUMBRAL_SMTP_USER=${CLIMATEUMBRAL_SMTP_USER:-}
+      - CLIMATEUMBRAL_SMTP_PASS=${CLIMATEUMBRAL_SMTP_PASS:-}
+      - CLIMATEUMBRAL_NOTIFY_TO=${CLIMATEUMBRAL_NOTIFY_TO:-}
     ports:
       - "127.0.0.1:8085:8080"
     volumes:

@@ -53,6 +53,7 @@ type server struct {
 	readLimiter *limiter
 	trustProxy  bool
 	adminToken  string // moderation: erases any act; "" = off
+	notify      *notifier
 
 	mu         sync.Mutex
 	ledger     *ledger
@@ -153,6 +154,7 @@ func main() {
 		readLimiter: newLimiter(10, 50),
 		trustProxy:  *trustProxy,
 		adminToken:  os.Getenv("CLIMATEUMBRAL_ADMIN_TOKEN"),
+		notify:      newNotifier(),
 		ledgerPath:  filepath.Join(*dataDir, "claims.json"),
 		expiry:      expiry,
 	}
@@ -194,6 +196,7 @@ func main() {
 	mux.HandleFunc("POST /api/suggest", s.limit(s.handleSuggest))
 	mux.HandleFunc("GET /api/suggestions", s.rlimit(s.handleSuggestions))
 	mux.HandleFunc("GET /api/stats", s.rlimit(s.handleStats))
+	mux.HandleFunc("GET /admin", handleAdmin)
 	mux.HandleFunc("GET /sitemap.xml", handleSitemap)
 	mux.HandleFunc("GET /robots.txt", handleRobots)
 	for _, c := range cityPages {

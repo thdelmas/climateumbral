@@ -83,6 +83,7 @@ func (s *server) handleReport(w http.ResponseWriter, r *http.Request) {
 	s.reports.n[body.Target+"|"+body.Issue]++
 	s.reports.dirty = true
 	s.reports.mu.Unlock()
+	s.notify.event("reports")
 	w.WriteHeader(http.StatusNoContent)
 }
 
