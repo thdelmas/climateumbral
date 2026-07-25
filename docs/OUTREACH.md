@@ -85,7 +85,7 @@ Guten Tag,
 ClimateUmbral (climateumbral.eu) ist ein offenes, gemeinnütziges
 Projekt, das die offiziellen kühlen Orte Europas auf einer Karte
 zusammenführt. Wir haben Ihren offenen Datensatz *Coole Zonen*
-(WFS, CC BY 4.0) integriert: alle 36 Wiener Zonen sind online,
+(WFS, CC BY 4.0) integriert: alle 41 Wiener Zonen sind online,
 mit Öffnungszeiten und mit sichtbarer Attribution der Stadt Wien.
 
 - Seite für Wien: https://climateumbral.eu/wien
@@ -153,7 +153,7 @@ Hello,
 
 ClimateUmbral (climateumbral.eu) is an open, non-profit map of
 Europe's official climate shelters — currently Barcelona (543),
-Paris (279), Vienna (36) and Grand Lyon (81), each ingested from
+Paris (279), Vienna (41) and Grand Lyon (81), each ingested from
 the city's own open data, attribution shown.
 
 Athens already maintains a cooling-places list (it powers the
@@ -183,7 +183,7 @@ Buongiorno,
 
 ClimateUmbral (climateumbral.eu) è un progetto aperto e non profit
 che riunisce su una sola mappa i rifugi climatici ufficiali
-d'Europa — oggi Barcellona (543), Parigi (279), Vienna (36) e
+d'Europa — oggi Barcellona (543), Parigi (279), Vienna (41) e
 Grand Lyon (81), ognuno dai dati aperti della città, con
 attribuzione visibile.
 
@@ -214,7 +214,7 @@ Hello,
 
 ClimateUmbral (climateumbral.eu) is an open, non-profit map of
 Europe's official climate shelters — currently Barcelona (543),
-Paris (279), Vienna (36) and Grand Lyon (81), each ingested from
+Paris (279), Vienna (41) and Grand Lyon (81), each ingested from
 the city's own open data, attribution shown.
 
 Rotterdam already maintains a koelteplekken list (it powers the
@@ -243,7 +243,7 @@ Buenos días,
 
 ClimateUmbral (climateumbral.eu) es un proyecto abierto y sin ánimo
 de lucro que reúne en un solo mapa los refugios climáticos
-oficiales de Europa — hoy Barcelona (543), París (279), Viena (36)
+oficiales de Europa — hoy Barcelona (543), París (279), Viena (41)
 y Gran Lyon (81), cada uno desde los datos abiertos de su ciudad,
 con atribución visible.
 
@@ -272,7 +272,7 @@ Hello,
 
 ClimateUmbral (climateumbral.eu) is an open, non-profit map of
 Europe's official climate shelters — currently Barcelona (543),
-Paris (279), Vienna (36) and Grand Lyon (81), each ingested from
+Paris (279), Vienna (41) and Grand Lyon (81), each ingested from
 the city's own open data, attribution shown.
 
 The GLA's Cool Spaces programme already maintains the list
@@ -323,6 +323,10 @@ github.com/thdelmas/climateumbral.
 
 - Verify each recipient address on the portal's own contact page
   before sending; none are listed here by design.
+- Shelter counts drift as cities update their data (Vienna grew
+  36→41 mid-campaign). Before sending any draft, re-check the
+  numbers against https://climateumbral.eu/api/refuges — an email
+  to a data team must not misquote their own dataset.
 - Channel reality (verified 2026-07-25): Barcelona, Paris and
   Grand Lyon publish NO email — their door is the city's ticketing
   form (IRIS / sollicitations.paris.fr / demarches-support
