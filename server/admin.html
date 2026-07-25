@@ -28,6 +28,8 @@ td:last-child,th:last-child{text-align:right}
 <h1>ClimateUmbral — back office
 <button id="out" style="float:right">sign out</button></h1>
 <p id="err"></p>
+<h2>KPIs <span class="mut">(docs/KPIS.md)</span></h2>
+<div id="kpi" class="mut">loading…</div>
 <h2>Suggestions</h2><div id="sug" class="mut">loading…</div>
 <h2>Place reports</h2><div id="rep" class="mut">loading…</div>
 <h2>Counters</h2><div id="sta" class="mut">loading…</div>
@@ -38,6 +40,36 @@ var esc=function(s){var d=document.createElement('div');
 $('out').onclick=function(){
   fetch('/api/admin/logout',{method:'POST'})
   .then(function(){location.reload()})};
+fetch('/api/kpis').then(function(r){return r.json()})
+.then(function(k){
+  var week=function(ev){ // sum an event over the 7 newest days
+    var days=Object.keys(k.daily||{}).sort().slice(-7),sum=0;
+    days.forEach(function(d){
+      var m=k.daily[d];
+      Object.keys(m).forEach(function(e){
+        if(e===ev||(ev==='page_*'&&e.indexOf('page_')===0))sum+=m[e]})});
+    return sum};
+  var rows=[
+    ['flipped (done)',k.acts.flipped+' acts / '+
+      k.acts.flipped_m2+' m² / '+
+      k.acts.night_mdegc.toFixed(1)+' m°C night'],
+    ['pledged (open)',k.acts.pledged+' acts'],
+    ['flip rate (of resolved)',
+      k.acts.flipped+k.acts.expired?
+        Math.round(k.acts.flip_rate*100)+'% ('+
+        k.acts.expired+' expired)':'—'],
+    ['blocks with live acts',k.spread.blocks_with_acts],
+    ['joins',k.spread.joins+' on '+k.spread.blocks_joined+
+      ' block'+(k.spread.blocks_joined===1?'':'s')],
+    ['reports open',k.reports_open],
+    ['routes to a cool place, 7d',week('cool_route')],
+    ['finder opens, 7d',week('cool_open')],
+    ['finder shares, 7d',week('cool_share')],
+    ['city-page visits, 7d',week('page_*')]];
+  $('kpi').innerHTML='<table>'+rows.map(function(r){
+    return '<tr><td>'+esc(String(r[0]))+'</td><td>'+
+      esc(String(r[1]))+'</td></tr>'}).join('')+'</table>'})
+.catch(function(){$('kpi').textContent='unavailable'});
 fetch('/api/suggestions')
 .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);
   return r.text()})

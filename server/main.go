@@ -49,6 +49,7 @@ type server struct {
 	counters    *counters
 	reports     *reportStore
 	suggestPath string
+	statsDir    string // daily counter snapshots, the KPI time axis
 	hub         *hub
 	limiter     *limiter
 	readLimiter *limiter
@@ -167,6 +168,7 @@ func main() {
 		counters:    newCounters(filepath.Join(*dataDir, "counters.json")),
 		reports:     newReports(filepath.Join(*dataDir, "reports.json")),
 		suggestPath: filepath.Join(*dataDir, "suggestions.jsonl"),
+		statsDir:    filepath.Join(*dataDir, "stats"),
 		hub:         newHub(),
 		// ~12 acts/min after a burst of 5; reads get a budget an
 		// honest map never exhausts but a tight loop does
@@ -228,6 +230,7 @@ func main() {
 	mux.HandleFunc("POST /api/suggest", s.limit(s.handleSuggest))
 	mux.HandleFunc("GET /api/suggestions", s.rlimit(s.handleSuggestions))
 	mux.HandleFunc("GET /api/stats", s.rlimit(s.handleStats))
+	mux.HandleFunc("GET /api/kpis", s.rlimit(s.handleKPIs))
 	mux.HandleFunc("GET /admin", s.handleAdmin)
 	mux.HandleFunc("POST /api/admin/login", s.limit(s.handleAdminLogin))
 	mux.HandleFunc("GET /admin/session", s.limit(s.handleAdminSession))
@@ -239,6 +242,7 @@ func main() {
 	}
 	go s.counters.persistLoop()
 	go s.reports.persistLoop()
+	go s.statsSnapshotLoop(s.statsDir)
 	if *dist != "" {
 		mux.Handle("/", spaHandler(*dist))
 	}
