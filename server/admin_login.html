@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>ClimateUmbral — sign in</title>
+<style>
+:root{color-scheme:light dark;
+  --bg:#fff;--fg:#1a1a1a;--mut:#667;--line:#ddd;--card:#f6f7f8}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#101214;--fg:#e8eaec;--mut:#99a;--line:#2a2e33;--card:#1a1e22}}
+body{margin:0 auto;max-width:44rem;padding:1.5rem 1rem 4rem;
+  background:var(--bg);color:var(--fg);
+  font:16px/1.5 system-ui,sans-serif}
+h1{font-size:1.2rem}
+input{font:inherit;padding:.4rem .6rem;border:1px solid var(--line);
+  border-radius:6px;background:var(--bg);color:var(--fg);width:16rem}
+button{font:inherit;padding:.4rem .9rem;border:1px solid var(--line);
+  border-radius:6px;background:var(--card);color:var(--fg);
+  cursor:pointer}
+.mut{color:var(--mut)}#err{color:#c33}
+</style>
+<h1>ClimateUmbral — back office</h1>
+<p class="mut">Enter your address; if the operator listed it, a
+sign-in link arrives within a minute and lives 15.</p>
+<p><input id="em" type="email" placeholder="you@example.org"
+  autocomplete="email">
+<button id="go">email me a link</button></p>
+<p id="msg" class="mut"></p>
+<p id="err"></p>
+<script>
+if(location.search.indexOf('expired')>=0)
+  document.getElementById('err').textContent=
+    'That link was already used or has expired — request a fresh one.';
+var go=function(){
+  var err=document.getElementById('err'),
+      msg=document.getElementById('msg');
+  err.textContent='';msg.textContent='';
+  fetch('/api/admin/login',{method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({email:
+      document.getElementById('em').value.trim()})})
+  .then(function(r){
+    if(r.status===202){msg.textContent=
+      'If that address is on the list, a link is on its way.';return}
+    return r.json().then(function(e){throw new Error(
+      e&&e.error?e.error:'HTTP '+r.status)})})
+  .catch(function(e){err.textContent=e.message})};
+document.getElementById('go').onclick=go;
+document.getElementById('em').addEventListener('keydown',
+  function(e){if(e.key==='Enter')go()});
+</script>

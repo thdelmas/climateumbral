@@ -64,7 +64,14 @@ outside the containers).
   players use:
   `curl -X DELETE -H "X-ClimateUmbral-Token: $ADMIN" https://climateumbral.eu/api/claims/<pe>/<pn>`
   (same for `/api/joins/<be>/<bn>`). Treat it like the ledger:
-  secret. Empty or unset = moderation off. Auto-deploy only rebuilds
+  secret. Empty or unset = moderation off.
+- Back office (`/admin`): sign-in is by emailed link. Add
+  `CLIMATEUMBRAL_ADMIN_EMAILS=<addr>[,<addr>…]` next to the admin
+  token (SMTP vars must also be set — the links ride the same relay
+  as the digests). The token itself is never typed into a browser:
+  it seeds the session signing key and stays the curl header above.
+  Rotate the token and every session and unclicked link dies.
+  Auto-deploy only rebuilds
   when main moves, so apply an env change immediately with:
   `cd /opt/climateumbral && set -a && . /etc/default/climateumbral && set +a && docker compose -f "${COMPOSE:-deploy/docker-compose.prod.yml}" up -d`
 - Logs: `docker compose -f deploy/docker-compose.prod.yml logs -f --tail 100`

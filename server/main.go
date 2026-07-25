@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -52,8 +53,15 @@ type server struct {
 	limiter     *limiter
 	readLimiter *limiter
 	trustProxy  bool
-	adminToken  string // moderation: erases any act; "" = off
+	adminToken  string   // moderation: erases any act; "" = off
+	adminEmails []string // back-office sign-in allowlist; empty = off
+	baseURL     string   // absolute origin used in mailed links
+	mailer      func(to, subject, body string) error
 	notify      *notifier
+
+	loginMu   sync.Mutex
+	loginUsed map[string]time.Time // burned sign-in jtis -> expiry
+	loginLast map[string]time.Time // address -> last sign-in mail
 
 	mu         sync.Mutex
 	ledger     *ledger
@@ -136,7 +144,19 @@ func main() {
 	trustProxy := flag.Bool("trust-proxy", false,
 		"key rate limits on the rightmost X-Forwarded-For hop; "+
 			"set only behind a reverse proxy that always sets it")
+	baseURL := flag.String("base-url", "https://climateumbral.eu",
+		"absolute origin used in mailed sign-in links")
 	flag.Parse()
+
+	// the sign-in allowlist: comma-separated addresses; whitespace
+	// and empty entries forgiven, a typo just never matches
+	var adminEmails []string
+	for _, e := range strings.Split(
+		os.Getenv("CLIMATEUMBRAL_ADMIN_EMAILS"), ",") {
+		if e = strings.TrimSpace(e); e != "" {
+			adminEmails = append(adminEmails, e)
+		}
+	}
 
 	expiry := time.Duration(*expiryDays) * 24 * time.Hour
 	s := &server{
@@ -154,12 +174,24 @@ func main() {
 		readLimiter: newLimiter(10, 50),
 		trustProxy:  *trustProxy,
 		adminToken:  os.Getenv("CLIMATEUMBRAL_ADMIN_TOKEN"),
+		adminEmails: adminEmails,
+		baseURL:     strings.TrimRight(*baseURL, "/"),
 		notify:      newNotifier(),
 		ledgerPath:  filepath.Join(*dataDir, "claims.json"),
 		expiry:      expiry,
 	}
+	// nil-safe method value: with SMTP off the mailer returns an
+	// error the login handler logs, and the visitor learns nothing
+	s.mailer = s.notify.mail
 	if s.adminToken != "" {
 		log.Print("moderation on: admin token accepted on DELETE")
+		if len(s.adminEmails) > 0 && s.notify != nil {
+			log.Printf("back office: email sign-in on for %d address(es)",
+				len(s.adminEmails))
+		} else {
+			log.Print("back office: email sign-in off (needs " +
+				"CLIMATEUMBRAL_ADMIN_EMAILS and SMTP)")
+		}
 	}
 	var err error
 	s.ledger, err = loadLedger(s.ledgerPath, expiry)
@@ -198,6 +230,7 @@ func main() {
 	mux.HandleFunc("GET /api/stats", s.rlimit(s.handleStats))
 	mux.HandleFunc("GET /admin", s.handleAdmin)
 	mux.HandleFunc("POST /api/admin/login", s.limit(s.handleAdminLogin))
+	mux.HandleFunc("GET /admin/session", s.limit(s.handleAdminSession))
 	mux.HandleFunc("POST /api/admin/logout", s.handleAdminLogout)
 	mux.HandleFunc("GET /sitemap.xml", handleSitemap)
 	mux.HandleFunc("GET /robots.txt", handleRobots)

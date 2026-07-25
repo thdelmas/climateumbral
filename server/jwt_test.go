@@ -90,6 +90,35 @@ func TestJWTVerify(t *testing.T) {
 	}
 }
 
+// The two token kinds share a key but must never cross: a mailed
+// link is not a session, a stolen session mints no links.
+func TestLoginTokens(t *testing.T) {
+	key := jwtKey("test-admin-token")
+	now := time.Unix(1_753_400_000, 0)
+	tok := jwtSignLogin(key, "abc123", now)
+
+	jti, ok := jwtVerifyLogin(key, tok, now)
+	if !ok || jti != "abc123" {
+		t.Fatalf("fresh link: got (%q, %v), want (abc123, true)", jti, ok)
+	}
+	if _, ok := jwtVerifyLogin(key, tok, now.Add(loginTTL)); ok {
+		t.Fatal("link must die at loginTTL")
+	}
+	if jwtVerify(key, tok, now) {
+		t.Fatal("a login link must not pass as a session")
+	}
+	if _, ok := jwtVerifyLogin(key, jwtSign(key, now), now); ok {
+		t.Fatal("a session must not pass as a login link")
+	}
+	noJti := forge(key, `{"alg":"HS256","typ":"JWT"}`, jwtClaims{
+		Sub: "login", Iat: now.Unix(),
+		Exp: now.Add(loginTTL).Unix(),
+	})
+	if _, ok := jwtVerifyLogin(key, noJti, now); ok {
+		t.Fatal("a login link without a jti has nothing to burn")
+	}
+}
+
 func TestJWTKeyDerivation(t *testing.T) {
 	// rotate the admin token -> every session key changes
 	if string(jwtKey("a")) == string(jwtKey("b")) {

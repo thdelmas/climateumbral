@@ -8,6 +8,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/smtp"
@@ -105,23 +106,9 @@ func (n *notifier) send() {
 	}
 	summary := strings.Join(parts, ", ")
 
-	msg := strings.Join([]string{
-		"From: ClimateUmbral <" + n.from + ">",
-		"To: " + n.to,
-		"Subject: ClimateUmbral: " + summary,
-		"Date: " + time.Now().UTC().Format(time.RFC1123Z),
-		"MIME-Version: 1.0",
-		"Content-Type: text/plain; charset=utf-8",
-		"",
-		"New feedback on climateumbral.eu: " + summary + ".",
-		"",
-		"Read it: https://climateumbral.eu/admin",
-		"",
-	}, "\r\n")
-
-	auth := smtp.PlainAuth("", n.user, n.pass, n.host)
-	err := smtp.SendMail(n.addr, auth, n.from, []string{n.to},
-		[]byte(msg))
+	err := n.mail(n.to, "ClimateUmbral: "+summary,
+		"New feedback on climateumbral.eu: "+summary+".\n\n"+
+			"Read it: https://climateumbral.eu/admin\n")
 	if err == nil {
 		return
 	}
@@ -136,4 +123,26 @@ func (n *notifier) send() {
 		n.timer = time.AfterFunc(notifyInterval, n.send)
 	}
 	n.mu.Unlock()
+}
+
+// mail sends one plain-text message through the configured relay;
+// digests and back-office sign-in links both go through here. The
+// nil receiver means mail is off and says so as an error.
+func (n *notifier) mail(to, subject, body string) error {
+	if n == nil {
+		return errors.New("mail off (SMTP not configured)")
+	}
+	msg := strings.Join([]string{
+		"From: ClimateUmbral <" + n.from + ">",
+		"To: " + to,
+		"Subject: " + subject,
+		"Date: " + time.Now().UTC().Format(time.RFC1123Z),
+		"MIME-Version: 1.0",
+		"Content-Type: text/plain; charset=utf-8",
+		"",
+		strings.ReplaceAll(body, "\n", "\r\n"),
+	}, "\r\n")
+	auth := smtp.PlainAuth("", n.user, n.pass, n.host)
+	return smtp.SendMail(n.addr, auth, n.from, []string{to},
+		[]byte(msg))
 }

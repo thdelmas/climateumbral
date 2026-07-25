@@ -1,26 +1,49 @@
-// The back office. Auth is a login-for-session exchange: POST the
-// admin token once, receive a 12h HS256 session in an httpOnly
-// Secure SameSite=Strict cookie. The browser can't read the
-// session (httpOnly kills XSS theft), other sites can't ride it
-// (SameSite kills CSRF), and the long-lived admin token crosses
-// the wire exactly once per session instead of once per request.
-// Login shares the act rate-limiter, so guessing tokens costs a
-// visitor the same budget as spamming pledges. With no admin
+// The back office. Auth is standard email-link sign-in: POST an
+// address, and if the operator listed it (CLIMATEUMBRAL_ADMIN_EMAILS)
+// a single-use 15-minute link travels by mail and exchanges for a
+// 12h HS256 session in an httpOnly Secure SameSite=Lax cookie
+// (Lax, not Strict: arriving from a mail client is a cross-site
+// navigation, and Strict would eat the fresh session on landing;
+// mutations stay safe because Lax withholds the cookie from
+// everything but top-level GETs, and those never mutate). Nothing
+// to type means nothing to phish, and the response never says
+// whether an address was listed. The admin token no longer travels
+// through a browser at all — it stays the signing seed and the curl
+// header (X-ClimateUmbral-Token) for scripted moderation; rotate it
+// and every session, link and script credential dies together.
+// Login and exchange share the act rate-limiter, so guessing costs
+// a visitor the same budget as spamming pledges. With no admin
 // token configured the page doesn't exist.
 package main
 
 import (
+	"crypto/rand"
+	_ "embed"
+	"encoding/hex"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
+	"strings"
 	"time"
 )
 
-const sessionCookie = "cu_admin"
+const (
+	sessionCookie = "cu_admin"
+	// one sign-in mail per address per interval: a stranger poking
+	// the form can't fill the operator's inbox
+	loginMailCooldown = time.Minute
+)
+
+//go:embed admin_login.html
+var adminLoginHTML string
+
+//go:embed admin.html
+var adminHTML string
 
 // adminReq accepts either credential: the X-ClimateUmbral-Token
 // header (curl, scripts) or a valid session cookie (the browser,
-// after login).
+// after following a mailed link).
 func (s *server) adminReq(r *http.Request) bool {
 	if s.isAdmin(r.Header.Get(tokenHeader)) {
 		return true
@@ -33,35 +56,133 @@ func (s *server) adminReq(r *http.Request) bool {
 		jwtVerify(jwtKey(s.adminToken), c.Value, time.Now())
 }
 
+// listedEmail reports whether addr is on the operator allowlist.
+func (s *server) listedEmail(addr string) bool {
+	for _, e := range s.adminEmails {
+		if strings.EqualFold(e, addr) {
+			return true
+		}
+	}
+	return false
+}
+
+// consumeLogin burns a link's jti: true exactly once. The set lives
+// in memory, so a restart forgets burned links and would accept a
+// replay for the rest of the 15 minutes — with one operator that
+// window buys not carrying a database.
+func (s *server) consumeLogin(jti string, now time.Time) bool {
+	s.loginMu.Lock()
+	defer s.loginMu.Unlock()
+	if s.loginUsed == nil {
+		s.loginUsed = map[string]time.Time{}
+	}
+	for j, exp := range s.loginUsed { // a handful of entries at most
+		if now.After(exp) {
+			delete(s.loginUsed, j)
+		}
+	}
+	if _, dup := s.loginUsed[jti]; dup {
+		return false
+	}
+	s.loginUsed[jti] = now.Add(loginTTL)
+	return true
+}
+
+// mayMail enforces the per-address cooldown; asking again inside it
+// silently sends nothing.
+func (s *server) mayMail(email string, now time.Time) bool {
+	s.loginMu.Lock()
+	defer s.loginMu.Unlock()
+	if s.loginLast == nil {
+		s.loginLast = map[string]time.Time{}
+	}
+	if last, ok := s.loginLast[email]; ok &&
+		now.Sub(last) < loginMailCooldown {
+		return false
+	}
+	s.loginLast[email] = now
+	return true
+}
+
+// handleAdminLogin takes an address and answers 202 no matter what:
+// whether it was listed, cooling down, or unknown is not for the
+// asker to learn. The mail goes out on its own goroutine so the
+// response time says nothing either.
 func (s *server) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 	if s.adminToken == "" {
 		http.NotFound(w, r)
 		return
 	}
 	var body struct {
-		Token string `json:"token"`
+		Email string `json:"email"`
 	}
 	if json.NewDecoder(io.LimitReader(r.Body, 4096)).
-		Decode(&body) != nil || !s.isAdmin(body.Token) {
-		writeJSON(w, http.StatusForbidden,
-			map[string]any{"error": "wrong token"})
+		Decode(&body) != nil {
+		writeErr(w, http.StatusBadRequest, "bad JSON body")
+		return
+	}
+	email := strings.TrimSpace(body.Email)
+	if email == "" || len(email) > 254 ||
+		!strings.Contains(email, "@") {
+		writeErr(w, http.StatusBadRequest, "not an email address")
+		return
+	}
+	now := time.Now()
+	if s.listedEmail(email) && s.mailer != nil &&
+		s.mayMail(strings.ToLower(email), now) {
+		var jti [16]byte
+		if _, err := rand.Read(jti[:]); err != nil {
+			writeErr(w, http.StatusInternalServerError,
+				"entropy unavailable")
+			return
+		}
+		link := s.baseURL + "/admin/session?t=" +
+			jwtSignLogin(jwtKey(s.adminToken),
+				hex.EncodeToString(jti[:]), now)
+		go func() {
+			err := s.mailer(email,
+				"ClimateUmbral back office: your sign-in link",
+				"Sign in to the back office — the link works once "+
+					"and dies in 15 minutes:\n\n"+link+"\n\n"+
+					"Not you? Ignore this mail; nothing happens "+
+					"without the link.\n")
+			if err != nil {
+				log.Printf("admin sign-in mail: %v", err)
+			}
+		}()
+	}
+	w.WriteHeader(http.StatusAccepted)
+}
+
+// handleAdminSession exchanges a mailed link for a session cookie.
+// Burned or expired links bounce back to the sign-in page instead
+// of a dead end — the operator just asks for a fresh one.
+func (s *server) handleAdminSession(w http.ResponseWriter, r *http.Request) {
+	if s.adminToken == "" {
+		http.NotFound(w, r)
+		return
+	}
+	now := time.Now()
+	jti, ok := jwtVerifyLogin(jwtKey(s.adminToken),
+		r.URL.Query().Get("t"), now)
+	if !ok || !s.consumeLogin(jti, now) {
+		http.Redirect(w, r, "/admin?expired=1", http.StatusSeeOther)
 		return
 	}
 	http.SetCookie(w, &http.Cookie{
-		Name: sessionCookie, Value: jwtSign(jwtKey(s.adminToken),
-			time.Now()),
+		Name: sessionCookie, Value: jwtSign(jwtKey(s.adminToken), now),
 		Path: "/", MaxAge: int(jwtTTL.Seconds()),
 		HttpOnly: true, Secure: true,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 	})
-	w.WriteHeader(http.StatusNoContent)
+	http.Redirect(w, r, "/admin", http.StatusSeeOther)
 }
 
 func (s *server) handleAdminLogout(w http.ResponseWriter, _ *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name: sessionCookie, Value: "", Path: "/", MaxAge: -1,
 		HttpOnly: true, Secure: true,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 	})
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -80,113 +201,3 @@ func (s *server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 	_, _ = w.Write([]byte(adminHTML))
 }
-
-const adminStyle = `<style>
-:root{color-scheme:light dark;
-  --bg:#fff;--fg:#1a1a1a;--mut:#667;--line:#ddd;--card:#f6f7f8}
-@media(prefers-color-scheme:dark){:root{
-  --bg:#101214;--fg:#e8eaec;--mut:#99a;--line:#2a2e33;--card:#1a1e22}}
-body{margin:0 auto;max-width:44rem;padding:1.5rem 1rem 4rem;
-  background:var(--bg);color:var(--fg);
-  font:16px/1.5 system-ui,sans-serif}
-h1{font-size:1.2rem}h2{font-size:1rem;margin-top:2rem}
-input{font:inherit;padding:.4rem .6rem;border:1px solid var(--line);
-  border-radius:6px;background:var(--bg);color:var(--fg);width:16rem}
-button{font:inherit;padding:.4rem .9rem;border:1px solid var(--line);
-  border-radius:6px;background:var(--card);color:var(--fg);
-  cursor:pointer}
-.item{background:var(--card);border-radius:8px;padding:.6rem .8rem;
-  margin:.5rem 0;white-space:pre-wrap;word-break:break-word}
-.item time{display:block;font-size:.8rem;color:var(--mut)}
-table{border-collapse:collapse;width:100%}
-td,th{text-align:left;padding:.25rem .5rem;
-  border-bottom:1px solid var(--line);font-size:.9rem}
-td:last-child,th:last-child{text-align:right}
-.mut{color:var(--mut)}#err{color:#c33}
-</style>`
-
-const adminLoginHTML = `<!doctype html>
-<html lang="en">
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
-<title>ClimateUmbral — sign in</title>
-` + adminStyle + `
-<h1>ClimateUmbral — back office</h1>
-<p><input id="tok" type="password" placeholder="admin token"
-  autocomplete="current-password">
-<button id="go">sign in</button></p>
-<p id="err"></p>
-<script>
-var go=function(){
-  document.getElementById('err').textContent='';
-  fetch('/api/admin/login',{method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({token:
-      document.getElementById('tok').value.trim()})})
-  .then(function(r){
-    if(r.status===204){location.reload();return}
-    return r.json().then(function(e){throw new Error(
-      e&&e.error?e.error:'HTTP '+r.status)})})
-  .catch(function(e){
-    document.getElementById('err').textContent=e.message})};
-document.getElementById('go').onclick=go;
-document.getElementById('tok').addEventListener('keydown',
-  function(e){if(e.key==='Enter')go()});
-</script>
-`
-
-const adminHTML = `<!doctype html>
-<html lang="en">
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
-<title>ClimateUmbral — back office</title>
-` + adminStyle + `
-<h1>ClimateUmbral — back office
-<button id="out" style="float:right">sign out</button></h1>
-<p id="err"></p>
-<h2>Suggestions</h2><div id="sug" class="mut">loading…</div>
-<h2>Place reports</h2><div id="rep" class="mut">loading…</div>
-<h2>Counters</h2><div id="sta" class="mut">loading…</div>
-<script>
-var $=function(id){return document.getElementById(id)};
-var esc=function(s){var d=document.createElement('div');
-  d.textContent=s;return d.innerHTML};
-$('out').onclick=function(){
-  fetch('/api/admin/logout',{method:'POST'})
-  .then(function(){location.reload()})};
-fetch('/api/suggestions')
-.then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);
-  return r.text()})
-.then(function(txt){
-  var lines=txt.split('\n').filter(Boolean).reverse();
-  if(!lines.length){$('sug').innerHTML='<span class=mut>none yet</span>';return}
-  $('sug').innerHTML=lines.map(function(l){
-    try{var o=JSON.parse(l);
-      return '<div class=item><time>'+esc(o.ts||'')+'</time>'+
-        esc(o.text||'')+'</div>'}
-    catch(e){return ''}
-  }).join('')})
-.catch(function(e){$('sug').innerHTML='';
-  $('err').textContent='suggestions: '+e.message});
-fetch('/api/reports').then(function(r){return r.json()})
-.then(function(m){
-  var keys=Object.keys(m).sort(function(a,b){return m[b]-m[a]});
-  if(!keys.length){$('rep').innerHTML='<span class=mut>none yet</span>';return}
-  $('rep').innerHTML='<table><tr><th>place</th><th>issue</th>'+
-    '<th>n</th></tr>'+keys.map(function(k){
-      var i=k.lastIndexOf('|');
-      return '<tr><td>'+esc(k.slice(0,i))+'</td><td>'+
-        esc(k.slice(i+1))+'</td><td>'+m[k]+'</td></tr>'
-    }).join('')+'</table>'})
-.catch(function(){$('rep').textContent='unavailable'});
-fetch('/api/stats').then(function(r){return r.json()})
-.then(function(m){
-  var keys=Object.keys(m).sort();
-  $('sta').innerHTML='<table>'+keys.map(function(k){
-    return '<tr><td>'+esc(k)+'</td><td>'+m[k]+'</td></tr>'
-  }).join('')+'</table>'})
-.catch(function(){$('sta').textContent='unavailable'});
-</script>
-`

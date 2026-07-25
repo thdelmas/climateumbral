@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>ClimateUmbral — back office</title>
+<style>
+:root{color-scheme:light dark;
+  --bg:#fff;--fg:#1a1a1a;--mut:#667;--line:#ddd;--card:#f6f7f8}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#101214;--fg:#e8eaec;--mut:#99a;--line:#2a2e33;--card:#1a1e22}}
+body{margin:0 auto;max-width:44rem;padding:1.5rem 1rem 4rem;
+  background:var(--bg);color:var(--fg);
+  font:16px/1.5 system-ui,sans-serif}
+h1{font-size:1.2rem}h2{font-size:1rem;margin-top:2rem}
+button{font:inherit;padding:.4rem .9rem;border:1px solid var(--line);
+  border-radius:6px;background:var(--card);color:var(--fg);
+  cursor:pointer}
+.item{background:var(--card);border-radius:8px;padding:.6rem .8rem;
+  margin:.5rem 0;white-space:pre-wrap;word-break:break-word}
+.item time{display:block;font-size:.8rem;color:var(--mut)}
+table{border-collapse:collapse;width:100%}
+td,th{text-align:left;padding:.25rem .5rem;
+  border-bottom:1px solid var(--line);font-size:.9rem}
+td:last-child,th:last-child{text-align:right}
+.mut{color:var(--mut)}#err{color:#c33}
+</style>
+<h1>ClimateUmbral — back office
+<button id="out" style="float:right">sign out</button></h1>
+<p id="err"></p>
+<h2>Suggestions</h2><div id="sug" class="mut">loading…</div>
+<h2>Place reports</h2><div id="rep" class="mut">loading…</div>
+<h2>Counters</h2><div id="sta" class="mut">loading…</div>
+<script>
+var $=function(id){return document.getElementById(id)};
+var esc=function(s){var d=document.createElement('div');
+  d.textContent=s;return d.innerHTML};
+$('out').onclick=function(){
+  fetch('/api/admin/logout',{method:'POST'})
+  .then(function(){location.reload()})};
+fetch('/api/suggestions')
+.then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);
+  return r.text()})
+.then(function(txt){
+  var lines=txt.split('\n').filter(Boolean).reverse();
+  if(!lines.length){$('sug').innerHTML='<span class=mut>none yet</span>';return}
+  $('sug').innerHTML=lines.map(function(l){
+    try{var o=JSON.parse(l);
+      return '<div class=item><time>'+esc(o.ts||'')+'</time>'+
+        esc(o.text||'')+'</div>'}
+    catch(e){return ''}
+  }).join('')})
+.catch(function(e){$('sug').innerHTML='';
+  $('err').textContent='suggestions: '+e.message});
+fetch('/api/reports').then(function(r){return r.json()})
+.then(function(m){
+  var keys=Object.keys(m).sort(function(a,b){return m[b]-m[a]});
+  if(!keys.length){$('rep').innerHTML='<span class=mut>none yet</span>';return}
+  $('rep').innerHTML='<table><tr><th>place</th><th>issue</th>'+
+    '<th>n</th></tr>'+keys.map(function(k){
+      var i=k.lastIndexOf('|');
+      return '<tr><td>'+esc(k.slice(0,i))+'</td><td>'+
+        esc(k.slice(i+1))+'</td><td>'+m[k]+'</td></tr>'
+    }).join('')+'</table>'})
+.catch(function(){$('rep').textContent='unavailable'});
+fetch('/api/stats').then(function(r){return r.json()})
+.then(function(m){
+  var keys=Object.keys(m).sort();
+  $('sta').innerHTML='<table>'+keys.map(function(k){
+    return '<tr><td>'+esc(k)+'</td><td>'+m[k]+'</td></tr>'
+  }).join('')+'</table>'})
+.catch(function(){$('sta').textContent='unavailable'});
+</script>

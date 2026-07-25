@@ -11,6 +11,7 @@ services:
       # moderation + feedback mail: set in /etc/default/climateumbral
       # on the box (the auto-deploy unit exports it); empty = off
       - CLIMATEUMBRAL_ADMIN_TOKEN=${CLIMATEUMBRAL_ADMIN_TOKEN:-}
+      - CLIMATEUMBRAL_ADMIN_EMAILS=${CLIMATEUMBRAL_ADMIN_EMAILS:-}
       - CLIMATEUMBRAL_SMTP_HOST=${CLIMATEUMBRAL_SMTP_HOST:-}
       - CLIMATEUMBRAL_SMTP_PORT=${CLIMATEUMBRAL_SMTP_PORT:-}
       - CLIMATEUMBRAL_SMTP_USER=${CLIMATEUMBRAL_SMTP_USER:-}
