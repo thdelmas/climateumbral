@@ -19,7 +19,7 @@ import (
 )
 
 type notifier struct {
-	addr, host, user, pass, to string
+	addr, host, user, pass, from, to string
 
 	mu       sync.Mutex
 	counts   map[string]int
@@ -53,10 +53,16 @@ func newNotifier() *notifier {
 	if port == "" {
 		port = "587"
 	}
+	// relay logins are not addresses (Resend's user is the literal
+	// string "resend"); the envelope sender gets its own knob
+	from := os.Getenv("CLIMATEUMBRAL_MAIL_FROM")
+	if from == "" {
+		from = user
+	}
 	log.Printf("notify: on, digests to %s via %s:%s", to, host, port)
 	return &notifier{
 		addr: host + ":" + port, host: host,
-		user: user, pass: pass, to: to,
+		user: user, pass: pass, from: from, to: to,
 		counts: map[string]int{},
 	}
 }
@@ -100,7 +106,7 @@ func (n *notifier) send() {
 	summary := strings.Join(parts, ", ")
 
 	msg := strings.Join([]string{
-		"From: ClimateUmbral <" + n.user + ">",
+		"From: ClimateUmbral <" + n.from + ">",
 		"To: " + n.to,
 		"Subject: ClimateUmbral: " + summary,
 		"Date: " + time.Now().UTC().Format(time.RFC1123Z),
@@ -114,7 +120,7 @@ func (n *notifier) send() {
 	}, "\r\n")
 
 	auth := smtp.PlainAuth("", n.user, n.pass, n.host)
-	err := smtp.SendMail(n.addr, auth, n.user, []string{n.to},
+	err := smtp.SendMail(n.addr, auth, n.from, []string{n.to},
 		[]byte(msg))
 	if err == nil {
 		return
