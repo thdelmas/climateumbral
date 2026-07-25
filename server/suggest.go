@@ -51,11 +51,11 @@ func (s *server) handleSuggest(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// handleSuggestions: admin-only. With no admin token configured the
-// box is write-only from the network — readable on the box itself.
+// handleSuggestions: admin-only — token header or a login session,
+// see adminReq. With no admin token configured the box is
+// write-only from the network — readable on the box itself.
 func (s *server) handleSuggestions(w http.ResponseWriter, r *http.Request) {
-	if s.adminToken == "" ||
-		r.Header.Get(tokenHeader) != s.adminToken {
+	if !s.adminReq(r) {
 		writeJSON(w, http.StatusForbidden,
 			map[string]any{"error": "admin token required"})
 		return

@@ -196,7 +196,9 @@ func main() {
 	mux.HandleFunc("POST /api/suggest", s.limit(s.handleSuggest))
 	mux.HandleFunc("GET /api/suggestions", s.rlimit(s.handleSuggestions))
 	mux.HandleFunc("GET /api/stats", s.rlimit(s.handleStats))
-	mux.HandleFunc("GET /admin", handleAdmin)
+	mux.HandleFunc("GET /admin", s.handleAdmin)
+	mux.HandleFunc("POST /api/admin/login", s.limit(s.handleAdminLogin))
+	mux.HandleFunc("POST /api/admin/logout", s.handleAdminLogout)
 	mux.HandleFunc("GET /sitemap.xml", handleSitemap)
 	mux.HandleFunc("GET /robots.txt", handleRobots)
 	for _, c := range cityPages {
