@@ -24,7 +24,7 @@ visible al mapa.
 
 - Pàgina per a Barcelona: https://climateumbral.eu/barcelona
 - Cercador d'emergència (5 idiomes, sense app ni compte):
-  https://climateumbral.eu/#cool
+  https://climateumbral.eu/cool
 
 Ens interessa molt el vostre criteri: representa bé el mapa la
 vostra xarxa? Hi ha res incorrecte o que hi falti (horaris, equipa-
@@ -58,7 +58,7 @@ affichée.
 
 - Page pour Paris : https://climateumbral.eu/paris
 - Chercheur d'urgence (5 langues, sans application, sans compte) :
-  https://climateumbral.eu/#cool
+  https://climateumbral.eu/cool
 
 Votre avis nous importe : la carte représente-t-elle fidèlement
 votre réseau ? Quelque chose d'inexact ou de manquant (horaires,
@@ -90,7 +90,7 @@ mit Öffnungszeiten und mit sichtbarer Attribution der Stadt Wien.
 
 - Seite für Wien: https://climateumbral.eu/wien
 - Notfall-Finder (5 Sprachen, ohne App, ohne Konto):
-  https://climateumbral.eu/#cool
+  https://climateumbral.eu/cool
 
 Ihr Urteil interessiert uns: Stellt die Karte Ihr Netz korrekt
 dar? Stimmt etwas nicht oder fehlt (Öffnungszeiten, Standorte, wie
@@ -128,7 +128,7 @@ en ligne, avec l'attribution de la Métropole affichée.
 
 - Page pour Lyon : https://climateumbral.eu/lyon
 - Chercheur d'urgence (5 langues, sans application, sans compte) :
-  https://climateumbral.eu/#cool
+  https://climateumbral.eu/cool
 
 Votre avis nous importe : la carte représente-t-elle fidèlement
 vos équipements ? Quelque chose d'inexact ou de manquant ? Répondez
