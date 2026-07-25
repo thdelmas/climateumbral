@@ -22,8 +22,8 @@ func pledge(x, y int, name string, ts time.Time) claim {
 func TestNightCooling(t *testing.T) {
 	d := pledge(1, 1, "a", t0)
 	d.V = 95
-	if got := nightCooling(&d); got < 3.9 || got > 4.0 {
-		t.Fatalf("depave at 95%%: got %.3f m degC, want ~3.95", got)
+	if got := nightCooling(&d); got < 2.4 || got > 2.5 {
+		t.Fatalf("depave at 95%%: got %.3f m degC, want ~2.47", got)
 	}
 	tr := pledge(2, 2, "b", t0)
 	tr.Kind = "tree"
@@ -34,8 +34,8 @@ func TestNightCooling(t *testing.T) {
 	cr := pledge(3, 3, "c", t0)
 	cr.Kind = "coolroof"
 	cr.V = 100
-	if got := nightCooling(&cr); got < 0.3 || got > 0.5 {
-		t.Fatalf("coolroof: got %.3f m degC, want ~0.42", got)
+	if got := nightCooling(&cr); got < 0.2 || got > 0.3 {
+		t.Fatalf("coolroof: got %.3f m degC, want ~0.26", got)
 	}
 }
 
@@ -158,8 +158,8 @@ func TestBlockCooling(t *testing.T) {
 	outside.Flipped = &flipTS
 	l := &ledger{Claims: []claim{inside, outside}}
 	got := l.blockCooling(1, 1, t0)
-	if got < 3.9 || got > 4.0 {
-		t.Fatalf("block (1,1) cooling: got %.3f, want ~3.95", got)
+	if got < 2.4 || got > 2.5 {
+		t.Fatalf("block (1,1) cooling: got %.3f, want ~2.47", got)
 	}
 	if l.blockCooling(1, 1, t0.Add(2*time.Hour)) != 0 {
 		t.Fatal("acts before the signature don't count")
@@ -176,7 +176,7 @@ func TestLeaderboardBlockColumn(t *testing.T) {
 		Joins:  []join{{Be: 1, Bn: 1, Name: "signer", TS: t0}},
 	}
 	ranks := l.leaderboard(t0.Add(3*time.Hour), 20)
-	if ranks[0].Name != "signer" || ranks[0].BlockMC < 3.9 {
+	if ranks[0].Name != "signer" || ranks[0].BlockMC < 2.4 {
 		t.Fatalf("signer should lead on block delta: %+v", ranks)
 	}
 }

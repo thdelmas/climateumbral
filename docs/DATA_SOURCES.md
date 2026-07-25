@@ -205,6 +205,79 @@ https://download.data.grandlyon.com/wfs/grandlyon?SERVICE=WFS&VERSION=2.0.0&REQU
   pixels = **3.4 ha of hard seal touching green**.
 - Collserola forest reads a clean 0; Eixample block mean ≈ 73%.
 
+## Real temperature: Landsat 8/9 Surface Temperature (day, 30 m)
+
+Verified live 2026-07-25. Feeds `tools/fetch_lst.py day` and the
+2026-07-25 calibration of `heat.js` (`tools/calibrate_heat.py`).
+Collection-2 Level-2 `ST_B10` (Kelvin = DN × 0.00341802 + 149, DN 0 =
+fill), ~10:30 solar overpass, via **Microsoft Planetary Computer** —
+STAC search and data access both anonymous:
+
+```
+POST https://planetarycomputer.microsoft.com/api/stac/v1/search
+     {"collections":["landsat-c2-l2"], ...}
+GET  https://planetarycomputer.microsoft.com/api/sas/v1/token/landsat-c2-l2
+```
+
+Append the SAS token as the query string of the asset href, then plain
+HTTP **range reads** against the COG: uint16, DEFLATE, 256×256 tiles,
+no predictor — a header read plus a handful of tile reads per scene,
+stdlib-only (same spirit as the IMD TIFF reader).
+
+### Its traps
+
+1. **The ST asset key is `lwir11`**, not `ST_B10`; the blob path carries
+   a second (processing) date the scene id lacks — always take the href
+   from the STAC item, never build it.
+2. **Mask with `qa_pixel`** (bits 0–4: fill, dilated cloud, cirrus,
+   cloud, shadow) — same tile layout, one more COG.
+3. **~10:30 is not the day's peak**: a day slope fit from Landsat
+   understates mid-afternoon. Sub-100 m afternoon+night LST exists
+   (ECOSTRESS) but needs an Earthdata login.
+4. Scene footprints clip bboxes near WRS path edges — composite several
+   scenes and require ≥3 clear samples per pixel.
+
+## Real temperature: MODIS Aqua night LST via GIBS (night, 1 km)
+
+Verified live 2026-07-25. Layer
+`MODIS_Aqua_L3_Land_Surface_Temp_8Day_Night` (~01:30 solar) on NASA
+GIBS, keyless. GIBS serves **colormapped PNGs**, but the colormap is
+published and WMS resamples nearest, so every pixel inverts exactly
+back to Kelvin (~0.6 K bins — fine for slope fitting, not for absolute
+precision):
+
+```
+https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?...&VERSION=1.1.1
+https://gibs.earthdata.nasa.gov/colormaps/v1.3/MODIS_Land_Surface_Temp.xml
+```
+
+### Its traps
+
+1. **The colormap is shared**, named `MODIS_Land_Surface_Temp.xml` — the
+   per-layer name 404s. Find it via the layer's `ows:Metadata` in the
+   WMTS capabilities.
+2. **Use WMS 1.1.1**, which keeps lon/lat bbox order; 1.3.0 flips axes
+   on EPSG:4326.
+3. **TIME must be an 8-day period start** (DOY 1+8k per year).
+4. Sea/cloud pixels come back alpha-0; count non-palette colors and
+   fail loudly if any appear (0 observed with nearest resampling).
+5. Aqua's orbit has been drifting later since 2022 — "~01:30" is
+   nominal.
+
+## Station records (air temperature, hourly, keyless)
+
+NOAA ISD-lite, plain HTTP directory, verified 2026-07-25 — real
+thermometers for display or sanity anchors (design rule: measured and
+modeled degrees never mix):
+
+```
+https://www.ncei.noaa.gov/pub/data/noaa/isd-lite/{YEAR}/{USAF}-99999-{YEAR}.gz
+```
+
+Barcelona: `081800` (city, 176 m — elevation offsets it from the
+plain) and `081810` (airport LEBL, 4 m), both hourly since 1973.
+Unadapted so far.
+
 ## Adjacent sources (unverified, for later)
 
 - EEA soil-sealing dashboard (context/stats): eea.europa.eu

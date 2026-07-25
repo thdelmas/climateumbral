@@ -71,20 +71,25 @@ therefore a *downscaled model* (LST calibrated against imperviousness
 and land cover) and must be labeled modeled. Rule 1 applies to degrees
 exactly as it applies to m²: modeled and measured never mix.
 
-Model v0.1 (shipped, `web/src/lib/heat.js`): penalty = coefficient ×
-mean sealed fraction, with day 6 °C and night 4 °C as placeholder
-magnitudes in the range European SUHI literature reports. Day and
+Model v1 (shipped, `web/src/lib/heat.js`): penalty = coefficient ×
+mean sealed fraction, with the coefficients no longer placeholders but
+the measured slope of real LST against the model's own sealed-fraction
+predictor over Barcelona (day 3 °C from Landsat 8/9 ST at 30 m,
+night 2.5 °C from MODIS Aqua night LST at 1 km; summers 2023–24;
+`tools/fetch_lst.py` + `tools/calibrate_heat.py`, 2026-07-25 — v0's
+6/4 guesses ran ~2× too hot). Both sources turned out to be reachable
+**keyless** — Landsat via Planetary Computer's anonymous SAS tokens,
+MODIS via GIBS colormap inversion — so the no-account purity survives
+along with the zero-cost doctrine (see `DATA_SOURCES.md`). Day and
 night differ in *structure*, not just scale: the day window is 50 m
 (surface heat tracks what the sun hits where you stand), the night
 window 150 m (the block's banked thermal mass releasing until dawn) —
 so the two views are genuinely different maps.
 Flipped pixels count as unsealed, so every flip cools its block in the
 model; a candidate's panel states how many flips like it the block
-needs to sleep 1 °C cooler. v1 replaces the coefficients with a
-calibration against real day/night LST — that step needs a Copernicus
-Data Space or NASA Earthdata registration (free, but no longer
-keyless; the zero-cost doctrine survives, the no-account purity does
-not).
+needs to sleep 1 °C cooler. Recalibration per city, and against
+afternoon-peak sources (ECOSTRESS needs Earthdata login), stays open
+for v2.
 
 Sustainability note (the binding constraint is money ≈ 0): open data
 only, infra one person can run. If monetization exists it sustains the

@@ -1,27 +1,36 @@
-// Modeled heat penalty, v0 — degrees above the unsealed state.
+// Modeled heat penalty, v1 — degrees above the unsealed state,
+// calibrated against measured land-surface temperature.
 //
 // The layer answers: how much warmer is this place than it would be
 // unsealed — day and night — for a body, not a thermometer. It is a
 // MODEL and is labeled modeled everywhere it appears (design rule 1
 // extended: modeled and measured degrees never mix).
 //
-// v0 is a linear penalty on the neighborhood sealed fraction, the
+// v1 keeps v0's linear penalty on the neighborhood sealed fraction, the
 // first-order driver of the surface urban heat island:
 //
-//   penalty(pixel) = COEF * mean(sealed fraction within 150 m)
+//   penalty(pixel) = COEF * mean(sealed fraction within the window)
 //
-// DAY_COEF 6 °C: daytime surface penalty — shade and evapotranspiration
-// lost. NIGHT_COEF 4 °C: the day's sun stored in thermal mass and
-// released until dawn — smaller, but it hits a sleeping body whose
-// livable optimum is lower; night is the layer that kills. Magnitudes
-// sit in the range European SUHI literature reports; calibration
-// against real LST (Sentinel-3 / MODIS, day and night passes)
-// replaces them in v1. Flipped pixels count as unsealed, so every
-// flip cools its block in the model.
+// but the coefficients are no longer invented: they are the measured
+// slope of real LST against this model's own sealed-fraction predictor
+// over Barcelona (tools/fetch_lst.py + tools/calibrate_heat.py,
+// run 2026-07-25, summers 2023-24, both sources keyless and open):
+//
+//   DAY_COEF 3 °C — 8 cloud-free Landsat 8/9 ST scenes (30 m, ~10:30
+//   solar) vs the 50 m window; decile means rise monotonically, so the
+//   linear form holds. Understates the mid-afternoon peak (morning
+//   overpass); elevation-green correlation pushes the other way.
+//   NIGHT_COEF 2.5 °C — MODIS Aqua 8-day night LST (1 km, ~01:30
+//   solar) vs cell mean sealed, R²=0.58. Smaller than day, but it hits
+//   a sleeping body whose livable optimum is lower; night is the layer
+//   that kills. Elevation confound uninspected: treat as upper bound.
+//
+// v0's 6/4 guesses ran ~2x too hot. Flipped pixels count as unsealed,
+// so every flip cools its block in the model.
 import { GREEN_MAX, HARD_SEALED } from './grid.js'
 
-export const DAY_COEF = 6
-export const NIGHT_COEF = 4
+export const DAY_COEF = 3
+export const NIGHT_COEF = 2.5
 // Day and night have different spatial structure, not just different
 // magnitude: daytime surface heat tracks what the sun hits where you
 // stand (small window), nighttime heat is the whole block's banked

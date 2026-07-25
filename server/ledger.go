@@ -198,15 +198,16 @@ type rank struct {
 
 // nightCooling scores one done act in modeled milli-degrees of
 // block-average night cooling. Mirrors web/src/lib/heat.js: night
-// coefficient 4 degC over a 150 m window (31x31 pixels; interior
-// window assumed), act night factors depave 0, tree 1, coolroof 0.9.
-// Small numbers are honest numbers: a depave is worth ~4 m degC to
-// its block's nights.
+// coefficient 2.5 degC (v1, calibrated against measured MODIS night
+// LST over Barcelona 2026-07-25 — see tools/calibrate_heat.py) over a
+// 150 m window (31x31 pixels; interior window assumed), act night
+// factors depave 0, tree 1, coolroof 0.9. Small numbers are honest
+// numbers: a depave is worth ~2.6 m degC to its block's nights.
 func nightCooling(c *claim) float64 {
 	factor := map[string]float64{
 		"depave": 0, "tree": 1, "coolroof": 0.9,
 	}[c.Kind]
-	return 4.0 * float64(c.V) / 100 * (1 - factor) / (31 * 31) * 1000
+	return 2.5 * float64(c.V) / 100 * (1 - factor) / (31 * 31) * 1000
 }
 
 // leaderboard keeps claimed and measured-ish apart (design rule 1):
