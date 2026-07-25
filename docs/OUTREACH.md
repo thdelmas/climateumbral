@@ -103,6 +103,11 @@ Link von Ihrer Hitze-Seite würde den verletzlichsten Menschen
 helfen, es zu finden — und sagen Sie uns Bescheid, wenn sich das
 Datenformat ändert (GitHub: github.com/thdelmas/climateumbral).
 
+Eine kleine Beobachtung am Rande: Der WFS-Layer
+(ogdwien:COOLEZONEOGD) ist offen verfügbar, scheint aber auf
+data.gv.at nicht katalogisiert zu sein — ein Katalogeintrag würde
+die Coolen Zonen für weitere Projekte auffindbar machen.
+
 Danke, dass Sie offene Daten veröffentlichen, die Leben retten,
 [Signatur]
 
@@ -205,9 +210,27 @@ Grazie,
 **Subject:** Rotterdam's cool places on Europe's climate-shelter
 map — one dataset away
 
-*(same body as Athens, substituting Rotterdam; their koelteplekken
-list feeds EXTREMA. Landing page: climateumbral.eu — Rotterdam city
-page can be added the day an adapter lands.)*
+Hello,
+
+ClimateUmbral (climateumbral.eu) is an open, non-profit map of
+Europe's official climate shelters — currently Barcelona (543),
+Paris (279), Vienna (36) and Grand Lyon (81), each ingested from
+the city's own open data, attribution shown.
+
+Rotterdam already maintains a koelteplekken list (it powers the
+EXTREMA app). If the city publishes that list as open data — any
+format, one page of requirements here:
+github.com/thdelmas/climateumbral/blob/main/docs/FOR_CITIES.md —
+we will put every Rotterdam cool place on the map, free, within
+days, and give the city its own page the day the adapter lands.
+
+We would also genuinely value your view: does this approach fit
+how Rotterdam thinks about heat protection? What would make it
+more useful to your residents? A reply to this email reaches the
+people who build it.
+
+Thank you,
+[signature]
 
 ---
 
@@ -245,9 +268,29 @@ Gracias,
 **Subject:** London's cool spaces on Europe's climate-shelter map —
 one dataset away
 
-*(same body as Athens, substituting London; the GLA Cool Spaces
-programme feeds EXTREMA and has published summer datasets before —
-if a current one exists, we adapt it directly.)*
+Hello,
+
+ClimateUmbral (climateumbral.eu) is an open, non-profit map of
+Europe's official climate shelters — currently Barcelona (543),
+Paris (279), Vienna (36) and Grand Lyon (81), each ingested from
+the city's own open data, attribution shown.
+
+The GLA's Cool Spaces programme already maintains the list
+Londoners need (it has fed the EXTREMA app and published summer
+datasets before), but we could not find a current Cool Spaces
+dataset on the London Datastore. If one is published — any format,
+one page of requirements here:
+github.com/thdelmas/climateumbral/blob/main/docs/FOR_CITIES.md —
+we will put every Cool Space on the map, free, within days, and
+give London its own page the day the adapter lands.
+
+We would also genuinely value your view: does this approach fit
+how London thinks about heat protection? What would make it more
+useful to Londoners? A reply to this email reaches the people who
+build it.
+
+Thank you,
+[signature]
 
 ---
 
@@ -280,6 +323,17 @@ github.com/thdelmas/climateumbral.
 
 - Verify each recipient address on the portal's own contact page
   before sending; none are listed here by design.
+- Channel reality (verified 2026-07-25): Barcelona, Paris and
+  Grand Lyon publish NO email — their door is the city's ticketing
+  form (IRIS / sollicitations.paris.fr / demarches-support
+  .grandlyon.com). Paste the email body into the form, set the
+  subject field from the draft, and put a reply-to address in the
+  body itself — ticket systems don't always thread back.
+- Vienna is the only adapter city with a direct OGD-team email
+  (stamped in every Stadt Wien dataset record on data.gv.at).
+- London: no Cool Spaces dataset currently on the London Datastore
+  (checked 2026-07-25 — /dataset/cool-spaces is 404), which is
+  exactly why the London email asks for one.
 - Send from (or CC) contact@climateumbral.eu so replies stay
   reachable to whoever maintains the project.
 - Send city emails on a hot-forecast week if possible — inboxes
