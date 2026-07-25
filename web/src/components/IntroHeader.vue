@@ -6,7 +6,10 @@
 
 <template>
   <header>
-    <h1>ClimateUmbral</h1>
+    <div class="brand">
+      <img class="logo" src="/logo.png" alt="" width="44" height="44" />
+      <h1>ClimateUmbral</h1>
+    </div>
     <p class="sub">
       Europe as the satellite sees it — every square a real
       10 × 10 m of ground. Gray is sealed, green is alive: turn gray
@@ -46,11 +49,21 @@
 </template>
 
 <style scoped>
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.logo {
+  width: clamp(34px, 4.5vw, 44px);
+  height: auto;
+  border-radius: 50%;
+}
 h1 {
   font-size: clamp(28px, 5vw, 44px);
   font-weight: 800;
   letter-spacing: -0.02em;
-  margin-bottom: 6px;
 }
 .sub {
   color: var(--ink-2);
