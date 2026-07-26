@@ -37,9 +37,9 @@ const refugeLabel = computed(() => {
   </div>
   <div v-else class="legend heat">
     <span class="cap">
-      {{ mode }} heat penalty vs unsealed (modeled) — the gap the
-      levers close; satellite calibration (V4) anchors it to the
-      livable threshold
+      {{ mode }} heat penalty vs unsealed (modeled, coefficients
+      calibrated against satellite records) — the gap the levers
+      close; the white pins are real thermometers
     </span>
     <span class="grad-row">
       <span>+0 °C</span>
@@ -50,6 +50,9 @@ const refugeLabel = computed(() => {
     <span><i class="pin cool-chip" /> modeled cool island</span>
     <span><i class="pin osmcool-chip" /> air-conditioned public
       place (OSM, not official)</span>
+    <span><i class="pin station-chip" /> measured — a real
+      thermometer (NOAA hourly record); never blended with the
+      modeled colors</span>
   </div>
 </template>
 
@@ -87,6 +90,11 @@ const refugeLabel = computed(() => {
 .legend i.osmcool-chip {
   background: transparent;
   border: 2px solid rgb(16, 148, 160);
+  box-shadow: none;
+}
+.legend i.station-chip {
+  background: #ffffff;
+  border: 2px solid rgb(40, 40, 46);
   box-shadow: none;
 }
 .legend i.block-chip {

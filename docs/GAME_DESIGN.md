@@ -89,7 +89,12 @@ Flipped pixels count as unsealed, so every flip cools its block in the
 model; a candidate's panel states how many flips like it the block
 needs to sleep 1 °C cooler. Recalibration per city, and against
 afternoon-peak sources (ECOSTRESS needs Earthdata login), stays open
-for v2.
+for v2. The heat views also carry **measured anchors**: NOAA
+GHCN-hourly station pins (white chip, ink ring — the palette's
+inverse) whose real thermometer readings sit beside the modeled
+colors with their observation time shown. Rule 1 in both directions:
+the reading never colors the overlay, the model never touches the
+pin, and the word "measured" travels with the number.
 
 Sustainability note (the binding constraint is money ≈ 0): open data
 only, infra one person can run. If monetization exists it sustains the

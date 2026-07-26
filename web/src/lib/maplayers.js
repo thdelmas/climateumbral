@@ -4,6 +4,8 @@
 // spots (model output) are separate sources that never blend.
 import maplibregl from 'maplibre-gl'
 import { fetchRefuges, refugesGeojson } from './refuges.js'
+import { fetchStations, stationsGeojson, obsLabel, lagDays }
+  from './stations.js'
 
 export const EMPTY_FC = { type: 'FeatureCollection', features: [] }
 
@@ -187,9 +189,36 @@ export function addCoolPlaceLayers(map, minCoolZoom, landMode,
   })
 }
 
+// addStationLayers: measured thermometers (NOAA GHCN hourly). Heat
+// views only — they anchor modeled degrees to real ones, and rule 1
+// holds: the reading never colors the overlay, the model never
+// touches the pin. The chip is the palette's inverse (white fill,
+// ink ring) so measured can never be mistaken for a modeled tier.
+export function addStationLayers(map, landMode) {
+  map.addSource('stations', { type: 'geojson', data: EMPTY_FC })
+  map.addLayer({
+    id: 'stations',
+    type: 'circle',
+    source: 'stations',
+    layout: { visibility: landMode ? 'none' : 'visible' },
+    paint: {
+      'circle-color': '#ffffff',
+      'circle-radius': [
+        'interpolate', ['linear'], ['zoom'], 4, 4, 16, 9,
+      ],
+      'circle-stroke-color': 'rgb(40, 40, 46)',
+      'circle-stroke-width': 2.5,
+    },
+  })
+  fetchStations().then((stations) => {
+    map?.getSource('stations')?.setData(stationsGeojson(stations))
+  })
+}
+
 // pinAt: topmost cool-place feature under the cursor, if any.
 export function pinAt(map, point) {
-  const layers = ['refuges', 'refuge-clusters', 'coolspots', 'osmcool']
+  const layers = ['stations', 'refuges', 'refuge-clusters',
+    'coolspots', 'osmcool']
     .filter((l) => map.getLayer(l))
   if (!layers.length) return null
   return map.queryRenderedFeatures(point, { layers })[0] ?? null
@@ -250,6 +279,44 @@ export function openRefugePopup(map, f) {
   }
   el.appendChild(row)
   new maplibregl.Popup({ maxWidth: '280px' })
+    .setLngLat(f.geometry.coordinates)
+    .setDOMContent(el)
+    .addTo(map)
+}
+
+// openStationPopup: a measured reading with its provenance spelled
+// out — station, altitude, source, and the observation's age. The
+// tier statement ("measured, never mixed into the model") appears in
+// the pin's own words, every time.
+export function openStationPopup(map, f) {
+  const p = f.properties
+  const el = document.createElement('div')
+  el.className = 'refuge-pop'
+  const name = document.createElement('strong')
+  name.textContent = `🌡 ${p.name}`
+  el.appendChild(name)
+  const reading = document.createElement('div')
+  reading.textContent = `measured ${obsLabel(p.latestC, p.latestUtc)}`
+  el.appendChild(reading)
+  const range = document.createElement('div')
+  range.textContent = 'last measured 24 h: ' +
+    `${Number(p.min24).toFixed(1)} to ${Number(p.max24).toFixed(1)} °C`
+  el.appendChild(range)
+  const lag = lagDays(p.latestUtc)
+  if (lag >= 1) {
+    const stale = document.createElement('div')
+    stale.textContent = `feed lags — newest record is ${lag} day` +
+      (lag > 1 ? 's' : '') + ' old'
+    el.appendChild(stale)
+  }
+  const note = document.createElement('div')
+  note.className = 'note'
+  note.textContent = 'real thermometer at ' +
+    `${Math.round(p.elev)} m altitude — NOAA GHCN hourly, station ` +
+    `${p.id}. Measured air temperature: it is never mixed into the ` +
+    'modeled heat layers, and they never change it.'
+  el.appendChild(note)
+  new maplibregl.Popup({ maxWidth: '300px' })
     .setLngLat(f.geometry.coordinates)
     .setDOMContent(el)
     .addTo(map)

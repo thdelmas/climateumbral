@@ -264,19 +264,42 @@ https://gibs.earthdata.nasa.gov/colormaps/v1.3/MODIS_Land_Surface_Temp.xml
 5. Aqua's orbit has been drifting later since 2022 — "~01:30" is
    nominal.
 
-## Station records (air temperature, hourly, keyless)
+## Station records: NOAA GHCN-hourly (air temperature, keyless)
 
-NOAA ISD-lite, plain HTTP directory, verified 2026-07-25 — real
-thermometers for display or sanity anchors (design rule: measured and
-modeled degrees never mix):
+Verified live 2026-07-26; adapted as the measured anchor pins
+(`server/stations.go`, `/api/stations`). Real thermometers, hourly,
+public HTTP, no key. Design rule 1 at its strictest: these measured
+degrees never mix into the modeled heat layers, and every surface
+they appear on says "measured".
 
 ```
-https://www.ncei.noaa.gov/pub/data/noaa/isd-lite/{YEAR}/{USAF}-99999-{YEAR}.gz
+.../global-historical-climatology-network/hourly/access/by-year/{Y}/psv/GHCNh_{ID}_{Y}.psv
+.../global-historical-climatology-network/hourly/doc/ghcnh-station-list.txt
 ```
 
-Barcelona: `081800` (city, 176 m — elevation offsets it from the
-plain) and `081810` (airport LEBL, 4 m), both hourly since 1973.
-Unadapted so far.
+(base `https://www.ncei.noaa.gov/oa/`). Pipe-separated, 1-indexed:
+field 3 = ISO date (UTC), field 12 = air temp °C. The by-year file is
+append-only — a `Range: bytes=-262144` tail read is weeks of data.
+
+Live Barcelona anchors: `SPM00008180` (city, WMO 08180, 176 m) and
+`SPUP00000Y9` (Port — ZAL Prat, 4 m). Feed lags ~2–3 days; the pin
+shows the observation time, never "now".
+
+### Its traps
+
+1. **ISD-lite is dead for Spain.** The predecessor product
+   (`pub/data/noaa/isd-lite/`) verified fine on 2026-07-25 and turned
+   out to have no Spanish data since mid-2025 and no 2026 directory
+   at all. Currency of the *specific station's current-year file* is
+   the test, not the product's existence.
+2. **Most area stations have no current file.** Of 12 GHCNh ids
+   around Barcelona (airport, Fabra, Raval…), only the two above are
+   live in 2026. Probe the by-year URL before adding any station.
+3. **Misses can answer HTTP 200** with an XML error document from the
+   backing bucket — check the first byte, not just the status.
+4. A ranged read lands mid-line: drop the fragment's first line.
+5. Missing temps are empty fields; a bad parse reads them as 0 °C —
+   skip, never zero. Sanity-clamp to −60…60.
 
 ## Adjacent sources (unverified, for later)
 

@@ -45,6 +45,7 @@ type server struct {
 	eea         *eeaClient
 	anchors     *anchorClient
 	refuges     *refugeClient
+	stations    *stationClient
 	coolPlaces  *coolPlacesClient
 	counters    *counters
 	reports     *reportStore
@@ -164,6 +165,7 @@ func main() {
 		eea:         newEEA(),
 		anchors:     newAnchors(),
 		refuges:     newRefuges(),
+		stations:    newStations(),
 		coolPlaces:  newCoolPlaces(),
 		counters:    newCounters(filepath.Join(*dataDir, "counters.json")),
 		reports:     newReports(filepath.Join(*dataDir, "reports.json")),
@@ -207,6 +209,7 @@ func main() {
 	mux.HandleFunc("GET /api/raster", s.rlimit(s.handleRaster))
 	mux.HandleFunc("GET /api/anchors", s.rlimit(s.handleAnchors))
 	mux.HandleFunc("GET /api/refuges", s.rlimit(s.handleRefuges))
+	mux.HandleFunc("GET /api/stations", s.rlimit(s.handleStations))
 	mux.HandleFunc("GET /api/coolplaces", s.rlimit(s.handleCoolPlaces))
 	mux.HandleFunc("GET /api/claims", s.rlimit(s.handleGetLedger))
 	mux.HandleFunc("POST /api/claims", s.limit(s.handlePledge))

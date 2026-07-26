@@ -28,9 +28,11 @@ import {
   basemapMood,
   addLedgerLayers,
   addCoolPlaceLayers,
+  addStationLayers,
   pinAt,
   openRefugePopup,
   openCoolPlacePopup,
+  openStationPopup,
 } from '../lib/maplayers.js'
 
 const props = defineProps({
@@ -284,6 +286,11 @@ function coolSpotsVisible() {
     map.setLayoutProperty('coolspots', 'visibility',
       props.mode === 'land' ? 'none' : 'visible')
   }
+  // measured thermometers ride the same rule: heat views only
+  if (map?.getLayer('stations')) {
+    map.setLayoutProperty('stations', 'visibility',
+      props.mode === 'land' ? 'none' : 'visible')
+  }
 }
 
 // ---- claims / blocks / selection as vector layers ----
@@ -529,6 +536,7 @@ onMounted(() => {
         refugeList = refuges
         emit('refuges', sources)
       })
+    addStationLayers(map, props.mode === 'land')
     // a pre-load paint may have added the game layer unanchored;
     // restore the intended order now that the claim layers exist
     if (map.getLayer('game')) map.moveLayer('game', 'claims-fill')
@@ -559,6 +567,10 @@ onMounted(() => {
     }
     if (pin?.layer.id === 'osmcool') {
       openCoolPlacePopup(map, pin)
+      return
+    }
+    if (pin?.layer.id === 'stations') {
+      openStationPopup(map, pin)
       return
     }
     if (map.getZoom() < PLAY_ZOOM) return
