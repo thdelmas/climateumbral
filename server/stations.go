@@ -29,8 +29,8 @@ import (
 )
 
 type stationDef struct {
-	ID   string  // GHCNh station id
-	Name string  // display name
+	ID   string // GHCNh station id
+	Name string // display name
 	Lat  float64
 	Lon  float64
 	Elev float64 // meters — part of reading the number honestly
