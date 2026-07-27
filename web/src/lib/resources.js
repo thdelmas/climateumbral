@@ -95,6 +95,17 @@ export const RESOURCES = [
   },
   {
     kind: 'act',
+    title: 'Ayuda: offer machinery or help during wildfires',
+    source: 'ClimateUmbral',
+    year: 2026,
+    url: '/ayuda',
+    note: 'Born in the July 2026 fires: the official channels to ' +
+      'offer tankers, excavators, tractors or hands, verified and ' +
+      'dated — and the waitlist for Renfort, a standing ' +
+      'citizen-resource registry for emergency command.',
+  },
+  {
+    kind: 'act',
     title: 'NK Tegelwippen',
     source: 'The Netherlands',
     year: 2020,
