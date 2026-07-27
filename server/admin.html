@@ -31,7 +31,6 @@ td:last-child,th:last-child{text-align:right}
 <h2>KPIs <span class="mut">(docs/KPIS.md)</span></h2>
 <div id="kpi" class="mut">loading…</div>
 <h2>Suggestions</h2><div id="sug" class="mut">loading…</div>
-<h2>Renfort waitlist</h2><div id="wl" class="mut">loading…</div>
 <h2>Place reports</h2><div id="rep" class="mut">loading…</div>
 <h2>Counters</h2><div id="sta" class="mut">loading…</div>
 <script>
@@ -85,25 +84,6 @@ fetch('/api/suggestions')
   }).join('')})
 .catch(function(e){$('sug').innerHTML='';
   $('err').textContent='suggestions: '+e.message});
-fetch('/api/waitlist')
-.then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);
-  return r.text()})
-.then(function(txt){
-  var rows=txt.split('\n').filter(Boolean).map(function(l){
-    try{return JSON.parse(l)}catch(e){return null}
-  }).filter(Boolean).reverse();
-  if(!rows.length){$('wl').innerHTML='<span class=mut>none yet</span>';return}
-  var tally={};rows.forEach(function(o){tally[o.status]=(tally[o.status]||0)+1});
-  var head=rows.length+' signup'+(rows.length===1?'':'s')+' — '+
-    Object.keys(tally).sort().map(function(k){return tally[k]+' '+k}).join(' · ');
-  $('wl').innerHTML='<p>'+esc(head)+'</p><table><tr><th>when</th><th>email</th>'+
-    '<th>status</th><th>where</th></tr>'+rows.map(function(o){
-      var where=[o.country,o.region,o.city].filter(Boolean).join(' / ');
-      return '<tr><td>'+esc((o.ts||'').slice(0,10))+'</td><td>'+esc(o.email||'')+
-        '</td><td>'+esc(o.status||'')+'</td><td>'+esc(where)+'</td></tr>'
-    }).join('')+'</table>'})
-.catch(function(e){$('wl').innerHTML='';
-  $('err').textContent='waitlist: '+e.message});
 fetch('/api/reports').then(function(r){return r.json()})
 .then(function(m){
   var keys=Object.keys(m).sort(function(a,b){return m[b]-m[a]});

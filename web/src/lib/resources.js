@@ -98,7 +98,7 @@ export const RESOURCES = [
     title: 'Ayuda: offer machinery or help during wildfires',
     source: 'ClimateUmbral',
     year: 2026,
-    url: '/ayuda',
+    url: 'https://renforts.eu/',
     note: 'Born in the July 2026 fires: the official channels to ' +
       'offer tankers, excavators, tractors or hands, verified and ' +
       'dated — and the waitlist for Renfort, a standing ' +
