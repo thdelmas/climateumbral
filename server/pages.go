@@ -367,7 +367,7 @@ func handleSitemap(w http.ResponseWriter, _ *http.Request) {
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n" +
 		`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` +
 		"\n")
-	for _, u := range []string{"", "press.html", "poster.html"} {
+	for _, u := range []string{"", "press.html", "poster.html", "ayuda"} {
 		b.WriteString("<url><loc>https://climateumbral.eu/" + u +
 			"</loc></url>\n")
 	}

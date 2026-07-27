@@ -42,24 +42,25 @@ const (
 )
 
 type server struct {
-	eea         *eeaClient
-	anchors     *anchorClient
-	refuges     *refugeClient
-	stations    *stationClient
-	coolPlaces  *coolPlacesClient
-	counters    *counters
-	reports     *reportStore
-	suggestPath string
-	statsDir    string // daily counter snapshots, the KPI time axis
-	hub         *hub
-	limiter     *limiter
-	readLimiter *limiter
-	trustProxy  bool
-	adminToken  string   // moderation: erases any act; "" = off
-	adminEmails []string // back-office sign-in allowlist; empty = off
-	baseURL     string   // absolute origin used in mailed links
-	mailer      func(to, subject, body string) error
-	notify      *notifier
+	eea          *eeaClient
+	anchors      *anchorClient
+	refuges      *refugeClient
+	stations     *stationClient
+	coolPlaces   *coolPlacesClient
+	counters     *counters
+	reports      *reportStore
+	suggestPath  string
+	waitlistPath string
+	statsDir     string // daily counter snapshots, the KPI time axis
+	hub          *hub
+	limiter      *limiter
+	readLimiter  *limiter
+	trustProxy   bool
+	adminToken   string   // moderation: erases any act; "" = off
+	adminEmails  []string // back-office sign-in allowlist; empty = off
+	baseURL      string   // absolute origin used in mailed links
+	mailer       func(to, subject, body string) error
+	notify       *notifier
 
 	loginMu   sync.Mutex
 	loginUsed map[string]time.Time // burned sign-in jtis -> expiry
@@ -162,16 +163,17 @@ func main() {
 
 	expiry := time.Duration(*expiryDays) * 24 * time.Hour
 	s := &server{
-		eea:         newEEA(),
-		anchors:     newAnchors(),
-		refuges:     newRefuges(),
-		stations:    newStations(),
-		coolPlaces:  newCoolPlaces(),
-		counters:    newCounters(filepath.Join(*dataDir, "counters.json")),
-		reports:     newReports(filepath.Join(*dataDir, "reports.json")),
-		suggestPath: filepath.Join(*dataDir, "suggestions.jsonl"),
-		statsDir:    filepath.Join(*dataDir, "stats"),
-		hub:         newHub(),
+		eea:          newEEA(),
+		anchors:      newAnchors(),
+		refuges:      newRefuges(),
+		stations:     newStations(),
+		coolPlaces:   newCoolPlaces(),
+		counters:     newCounters(filepath.Join(*dataDir, "counters.json")),
+		reports:      newReports(filepath.Join(*dataDir, "reports.json")),
+		suggestPath:  filepath.Join(*dataDir, "suggestions.jsonl"),
+		waitlistPath: filepath.Join(*dataDir, "waitlist.jsonl"),
+		statsDir:     filepath.Join(*dataDir, "stats"),
+		hub:          newHub(),
 		// ~12 acts/min after a burst of 5; reads get a budget an
 		// honest map never exhausts but a tight loop does
 		limiter:     newLimiter(0.2, 5),
@@ -232,12 +234,16 @@ func main() {
 	mux.HandleFunc("GET /api/reports", s.rlimit(s.handleReports))
 	mux.HandleFunc("POST /api/suggest", s.limit(s.handleSuggest))
 	mux.HandleFunc("GET /api/suggestions", s.rlimit(s.handleSuggestions))
+	mux.HandleFunc("POST /api/waitlist", s.limit(s.handleWaitlistJoin))
+	mux.HandleFunc("GET /api/waitlist", s.rlimit(s.handleWaitlist))
 	mux.HandleFunc("GET /api/stats", s.rlimit(s.handleStats))
 	mux.HandleFunc("GET /api/kpis", s.rlimit(s.handleKPIs))
 	mux.HandleFunc("GET /admin", s.handleAdmin)
 	mux.HandleFunc("POST /api/admin/login", s.limit(s.handleAdminLogin))
 	mux.HandleFunc("GET /admin/session", s.limit(s.handleAdminSession))
 	mux.HandleFunc("POST /api/admin/logout", s.handleAdminLogout)
+	mux.HandleFunc("GET /ayuda", s.handleAyuda)
+	mux.HandleFunc("GET /ayuda/", s.handleAyuda)
 	mux.HandleFunc("GET /sitemap.xml", handleSitemap)
 	mux.HandleFunc("GET /robots.txt", handleRobots)
 	for _, c := range cityPages {
