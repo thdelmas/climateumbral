@@ -11,7 +11,7 @@
 <meta property="og:url" content="https://climateumbral.eu/ayuda/">
 <style>
   /* Renfort tokens — keep in sync with web/src/style.css @theme (docs/DESIGN.md) */
-  :root { --brand:#d97706; --brand-ink:#b45309; --danger:#b91c1c; --ink:#1c1917; --mut:#57534e; --bg:#fafaf9; --card:#fff; --line:#e7e5e4; }
+  :root { --brand:#d97706; --brand-ink:#b45309; --danger:#b91c1c; --ok:#047857; --ink:#1c1917; --mut:#57534e; --bg:#fafaf9; --card:#fff; --line:#e7e5e4; }
   * { box-sizing:border-box; margin:0; }
   body { font:16px/1.55 system-ui,-apple-system,sans-serif; color:var(--ink); background:var(--bg); padding-bottom:4rem; }
   .wrap { max-width:44rem; margin:0 auto; padding:0 1rem; }
@@ -61,7 +61,7 @@
 </head>
 <body>
 <header><div class="wrap">
-  <strong data-i18n="brand"></strong>
+  <a href="https://climateumbral.eu/" style="text-decoration:none;color:inherit"><strong data-i18n="brand"></strong></a>
   <nav class="langs"><button data-l="es">es</button><button data-l="fr">fr</button><button data-l="en">en</button></nav>
 </div></header>
 
@@ -232,9 +232,6 @@ es: {
   pillSoon: "En construcción",
   rn1h: "Renfort: un registro permanente de recursos ciudadanos",
   rn1p: "Empresas, agricultores y particulares declaran una vez qué máquinas y manos pueden aportar, dónde y hasta cuándo. La entidad oficial que opere el registro lo verifica por teléfono, y el mando de emergencias recibe la lista de su comarca cuando la pide. El prototipo funciona; falta la primera entidad operadora. Si quieres que te avisemos cuando abra en tu zona (solo para eso, nada más):",
-  rnBtn: "✉️ Avísame cuando abra en mi zona",
-  rnMailSubject: "Aviso: registro Renfort en mi zona",
-  rnMailBody: "Mi zona (comarca/departamento): \nQué podría aportar (opcional): ",
   rn1meta: "Tu email solo se usa para ese aviso. ¿Eres una entidad oficial interesada en operarlo? Escríbenos al mismo correo.",
   navHelp: "Ayudar a personas",
   helpTitle: "🤝 Para ayudar a las personas afectadas",
@@ -300,9 +297,6 @@ fr: {
   pillSoon: "En construction",
   rn1h: "Renfort : un registre permanent de ressources citoyennes",
   rn1p: "Entreprises, agriculteurs et particuliers déclarent une fois machines et bras disponibles, où et jusqu'à quand. L'organisme officiel qui opère le registre vérifie par téléphone, et le commandement reçoit la liste de son secteur quand il la demande. Le prototype fonctionne ; il manque le premier opérateur officiel. Pour être prévenu quand le registre ouvre dans votre zone (uniquement pour cela) :",
-  rnBtn: "✉️ Prévenez-moi à l'ouverture dans ma zone",
-  rnMailSubject: "Alerte : registre Renfort dans ma zone",
-  rnMailBody: "Ma zone (département/comarca) : \nCe que je pourrais apporter (facultatif) : ",
   rn1meta: "Votre email ne sert qu'à cette alerte. Organisme officiel intéressé pour l'opérer ? Écrivez-nous à la même adresse.",
   navHelp: "Aider les personnes",
   helpTitle: "🤝 Pour aider les personnes touchées",
@@ -368,9 +362,6 @@ en: {
   pillSoon: "In the making",
   rn1h: "Renfort: a standing registry of citizen resources",
   rn1p: "Companies, farmers and individuals declare once what machines and hands they can contribute, where, and until when. The official body operating the registry verifies by phone, and emergency command receives its district's list on request. The prototype works; the first official operator is what's missing. To be notified when the registry opens in your area (for that alone):",
-  rnBtn: "✉️ Notify me when it opens in my area",
-  rnMailSubject: "Notify me: Renfort registry in my area",
-  rnMailBody: "My area (district/comarca): \nWhat I could contribute (optional): ",
   rn1meta: "Your email is used only for that notification. An official body interested in operating it? Write to the same address.",
   navHelp: "Help people",
   helpTitle: "🤝 To help affected people",
@@ -430,6 +421,7 @@ function render(l) {
   document.querySelectorAll('[data-i18n]').forEach(e => { e.innerHTML = M[l][e.dataset.i18n] || ''; });
   document.querySelectorAll('.langs button').forEach(b => b.classList.toggle('on', b.dataset.l === l));
   if (typeof buildShare === 'function') buildShare(l);
+  if (typeof syncCountry === 'function') syncCountry(l);
 
 }
 document.querySelectorAll('.langs button').forEach(b => b.onclick = () => render(b.dataset.l));
@@ -469,11 +461,23 @@ function buildShare(l) {
   });
 }
 
+// country follows the page language until the visitor touches it
+let rnCountryTouched = false;
+document.getElementById('rnCountry').addEventListener('change', () => { rnCountryTouched = true; });
+function syncCountry(l) {
+  if (!rnCountryTouched && (l === 'fr' || l === 'es'))
+    document.getElementById('rnCountry').value = l.toUpperCase();
+}
+syncCountry(localStorage.getItem('relay_lang') || 'es');
+
 document.getElementById('rnForm').onsubmit = async (ev) => {
   ev.preventDefault();
   const l = localStorage.getItem('relay_lang') || 'es';
   const g = id => document.getElementById(id).value.trim();
   const msg = document.getElementById('rnMsg');
+  const btn = document.querySelector('#rnForm button');
+  btn.disabled = true;
+  msg.textContent = '';
   try {
     const r = await fetch('/api/waitlist', {
       method: 'POST',
@@ -482,9 +486,14 @@ document.getElementById('rnForm').onsubmit = async (ev) => {
         region: g('rnRegion'), city: g('rnCity'), lang: l, website: g('rnWebsite') }),
     });
     if (!r.ok) throw 0;
-    document.querySelectorAll('#rnForm input, #rnForm select, #rnForm button').forEach(x => x.disabled = true);
+    document.querySelectorAll('#rnForm input, #rnForm select').forEach(x => x.disabled = true);
+    msg.style.color = 'var(--ok, #047857)';
     msg.textContent = M[l].rnDone;
-  } catch { msg.textContent = M[l].rnErr; }
+  } catch {
+    btn.disabled = false;
+    msg.style.color = 'var(--danger)';
+    msg.textContent = M[l].rnErr;
+  }
 };
 </script>
 </body>
