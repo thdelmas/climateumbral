@@ -56,6 +56,8 @@ func TestWaitlistValidation(t *testing.T) {
 		"bad email":       `{"email":"nope","status":"farmer","country":"ES"}`,
 		"bad status":      `{"email":"a@b.co","status":"alien","country":"ES"}`,
 		"missing country": `{"email":"a@b.co","status":"farmer"}`,
+		"bad country":     `{"email":"a@b.co","status":"farmer","country":"Narnia"}`,
+		"html email":      `{"email":"x@y.z<svg>","status":"farmer","country":"ES"}`,
 	} {
 		s := waitlistServer(t)
 		if w := postWaitlist(s, body); w.Code != 400 {

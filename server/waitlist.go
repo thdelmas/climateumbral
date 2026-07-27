@@ -1,7 +1,8 @@
 // The Renfort waitlist — consent-based signups to be notified when
 // the citizen-resource registry opens in an area. Same privacy rules
 // as the suggestion box: never public, admin-only reads, and nothing
-// stored beyond what the person typed plus the moment it arrived.
+// stored beyond what the person typed, the page language (so the
+// notification arrives in their language) and the moment it arrived.
 // This is NOT emergency intake: the only promise made is one future
 // email.
 package main
@@ -23,12 +24,22 @@ var waitlistStatuses = map[string]bool{
 	"official": true, "company": true, "farmer": true, "civilian": true,
 }
 
-var waitlistEmailRe = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`)
+var waitlistEmailRe = regexp.MustCompile(`^[^@\s<>"']+@[^@\s<>"']+\.[^@\s<>"']+$`)
+
+// The form sends ISO 3166-1 alpha-2 codes for the EU-27, or "other".
+var waitlistCountries = map[string]bool{
+	"AT": true, "BE": true, "BG": true, "CY": true, "CZ": true,
+	"DE": true, "DK": true, "EE": true, "ES": true, "FI": true,
+	"FR": true, "GR": true, "HR": true, "HU": true, "IE": true,
+	"IT": true, "LT": true, "LU": true, "LV": true, "MT": true,
+	"NL": true, "PL": true, "PT": true, "RO": true, "SE": true,
+	"SI": true, "SK": true, "other": true,
+}
 
 func clipField(v string, n int) string {
 	v = strings.TrimSpace(v)
-	if len(v) > n {
-		v = v[:n]
+	if r := []rune(v); len(r) > n {
+		v = string(r[:n])
 	}
 	return v
 }
@@ -64,9 +75,9 @@ func (s *server) handleWaitlistJoin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	country := clipField(body.Country, 60)
-	if country == "" {
+	if !waitlistCountries[country] {
 		writeJSON(w, http.StatusBadRequest,
-			map[string]any{"error": "country required"})
+			map[string]any{"error": "invalid country"})
 		return
 	}
 	line, _ := json.Marshal(map[string]any{
@@ -81,7 +92,7 @@ func (s *server) handleWaitlistJoin(w http.ResponseWriter, r *http.Request) {
 	waitlistMu.Lock()
 	defer waitlistMu.Unlock()
 	f, err := os.OpenFile(s.waitlistPath,
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError,
 			map[string]any{"error": "could not save"})

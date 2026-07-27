@@ -9,6 +9,7 @@
 <meta property="og:description" content="¿Tienes maquinaria o quieres ayudar? Canales oficiales, verificados y con fecha. Vous avez du matériel ? Les canaux officiels, vérifiés.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://climateumbral.eu/ayuda/">
+<link rel="canonical" href="https://climateumbral.eu/ayuda/">
 <style>
   /* Renfort tokens — keep in sync with web/src/style.css @theme (docs/DESIGN.md) */
   :root { --brand:#d97706; --brand-ink:#b45309; --danger:#b91c1c; --ok:#047857; --ink:#1c1917; --mut:#57534e; --bg:#fafaf9; --card:#fff; --line:#e7e5e4; }
@@ -462,7 +463,7 @@ function buildShare(l) {
 }
 
 // country follows the page language until the visitor touches it
-let rnCountryTouched = false;
+var rnCountryTouched = false;
 document.getElementById('rnCountry').addEventListener('change', () => { rnCountryTouched = true; });
 function syncCountry(l) {
   if (!rnCountryTouched && (l === 'fr' || l === 'es'))
