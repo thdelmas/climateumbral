@@ -141,6 +141,17 @@ https://data.wien.gv.at/daten/geo?service=WFS&version=1.1.0&request=GetFeature&t
 
 ## Official climate shelters: Grand Lyon, Équipements publics climatisés
 
+> **DEPUBLISHED upstream 2026-07 — endpoint returns 401.** Grand Lyon
+> support (Valérie, 2026-07-29, tracking code MKFFGWVJ, replying to our
+> 2026-07-25 request) says the dataset was pulled because the data was
+> old; they have asked the owning service for a refresh and will
+> republish. Live site correctly reports `lyon: ok:false, count:0` —
+> designed behavior, no action needed in code. When it comes back,
+> re-verify the typename (it may change) and the traps below before
+> trusting the weekly fetch again. Follow-up lives on
+> data.grandlyon.com support under that tracking code (their mail is
+> no-reply).
+
 Verified live 2026-07-20. Adapter #4 (`parseLyonRefuges`). 90 features,
 of which **81 make the shelter tier**: the dataset is already curated as
 cooled public facilities, but parks, an open-air sports complex and a
