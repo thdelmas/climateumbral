@@ -151,6 +151,14 @@ https://data.wien.gv.at/daten/geo?service=WFS&version=1.1.0&request=GetFeature&t
 > trusting the weekly fetch again. Follow-up lives on
 > data.grandlyon.com support under that tracking code (their mail is
 > no-reply).
+>
+> 2026-08-03: ticket hit "Précisions demandées à l'utilisateur"
+> (29-07); précisions submitted in-portal same day (our usage, exact
+> typename, two asks: notify on republication + does the typename
+> change, and any interim equivalent dataset; offered that the old
+> vintage republished with its reference date still serves us). Ball
+> is theirs (producing service). Probe the ticket if silent by
+> ~24-08.
 
 Verified live 2026-07-20. Adapter #4 (`parseLyonRefuges`). 90 features,
 of which **81 make the shelter tier**: the dataset is already curated as
