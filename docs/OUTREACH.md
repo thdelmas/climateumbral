@@ -78,6 +78,22 @@ Merci de publier des données ouvertes qui sauvent des vies,
 
 ## 3 · Wien — Stadt Wien / Open Data (German)
 
+> **REPLIED 2026-08-04 — Jan Labanc (MD-OS Open, open@post.wien.gv.at),**
+> replying to our 25-07 send. Two threads: (1) he shared climateumbral.eu
+> with the city's internal Data-Gruppe — they will review the site and
+> he'll forward any remarks or errors; (2) on COOLEZONEOGD's missing
+> catalog entry they are "checking the status" and he asked for our
+> source ("nicht data.gv.at — war es wien.gv.at/umwelt/coole-zonen?").
+> True discovery route (verified in session transcript 20-07): entry
+> point was the 24-06-2026 press release + that page, then the layer
+> itself found by grepping the city WFS GetCapabilities for cool/kühl;
+> each feature's WEBLINK1 pointing back at the coole-zonen page
+> confirmed the match. Our answer (drafted 04-08; mark sent here when it
+> goes out) gives that route, the exact GetFeature URL, corrects 41→39
+> zones (layer breathes; live site matches 39 as of 04-08), and asks
+> them to confirm the assumed CC BY 4.0 since there's no catalog entry
+> to state it. Ball: theirs (catalog check + Data-Gruppe review).
+
 **Betreff:** Ihre Coolen Zonen, jetzt auf einer europäischen Karte
 
 Guten Tag,
