@@ -257,8 +257,10 @@ export function openRefugePopup(map, f) {
   }
   // one-tap crowd verification, same vocabulary as the finder
   const [lon, lat] = f.geometry.coordinates
+  // a caller that forgot src must not mint "refuge:undefined:…"
+  // into the report ledger — the key is forever
   const target =
-    `refuge:${p.src}:${lon.toFixed(4)},${lat.toFixed(4)}`
+    `refuge:${p.src ?? 'unknown'}:${lon.toFixed(4)},${lat.toFixed(4)}`
   const row = document.createElement('div')
   row.className = 'report-row'
   for (const [issue, label] of [

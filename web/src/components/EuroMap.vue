@@ -488,7 +488,7 @@ function shelterTonight() {
   openRefugePopup(map, {
     properties: {
       name: best.name, addr: best.addr ?? '', web: best.web ?? '',
-      hours: hoursLabel(best),
+      hours: hoursLabel(best), src: best.src,
     },
     geometry: { coordinates: [best.lon, best.lat] },
   })

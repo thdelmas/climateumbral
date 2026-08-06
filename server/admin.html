@@ -84,14 +84,27 @@ fetch('/api/suggestions')
   }).join('')})
 .catch(function(e){$('sug').innerHTML='';
   $('err').textContent='suggestions: '+e.message});
-fetch('/api/reports').then(function(r){return r.json()})
-.then(function(m){
+// no-store: /api/reports is publicly cacheable for 5 min, but the
+// operator arrives from a "new feedback" mail — stale counts here
+// read as lost feedback. Refuge targets resolve to shelter names
+// (matched on the 4-decimal coords baked into the report key).
+Promise.all([
+  fetch('/api/reports',{cache:'no-store'})
+    .then(function(r){return r.json()}),
+  fetch('/api/refuges').then(function(r){return r.json()})
+    .catch(function(){return {refuges:[]}})
+]).then(function(res){
+  var m=res[0],names={};
+  (res[1].refuges||[]).forEach(function(f){
+    names[f.lon.toFixed(4)+','+f.lat.toFixed(4)]=f.name});
   var keys=Object.keys(m).sort(function(a,b){return m[b]-m[a]});
   if(!keys.length){$('rep').innerHTML='<span class=mut>none yet</span>';return}
   $('rep').innerHTML='<table><tr><th>place</th><th>issue</th>'+
     '<th>n</th></tr>'+keys.map(function(k){
-      var i=k.lastIndexOf('|');
-      return '<tr><td>'+esc(k.slice(0,i))+'</td><td>'+
+      var i=k.lastIndexOf('|'),t=k.slice(0,i),label=t;
+      var c=/^refuge:[^:]*:(.+)$/.exec(t);
+      if(c&&names[c[1]])label=names[c[1]]+' — '+c[1];
+      return '<tr><td>'+esc(label)+'</td><td>'+
         esc(k.slice(i+1))+'</td><td>'+m[k]+'</td></tr>'
     }).join('')+'</table>'})
 .catch(function(){$('rep').textContent='unavailable'});
