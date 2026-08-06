@@ -23,6 +23,12 @@ var reportIssues = map[string]bool{
 
 // targetOK: "refuge:src:lon,lat" or "place:node/123456". Printable
 // ASCII, bounded — the target is a key, never rendered as HTML.
+// Shape-valid is all it is: the endpoint is open, so the ledger can
+// hold keys that match no pin (first live one 06-08:
+// refuge:bcn:2.1700,41.3870 — the Barcelona city-center constant,
+// a hand test, no code path mints city coords). Orphans are fine by
+// construction — read-back looks up counts by a real pin's coords,
+// so a key without a pin is never rendered anywhere public.
 func targetOK(t string) bool {
 	if len(t) > 140 ||
 		(!strings.HasPrefix(t, "refuge:") &&

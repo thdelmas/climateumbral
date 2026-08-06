@@ -16,6 +16,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { fetchRefuges } from '../lib/refuges.js'
 import { KIND_ICON } from '../lib/coolplaces.js'
 import { STRINGS, LANGS, pickLang } from '../lib/cooltext.js'
+import { reportCounts, REPORT_ISSUES } from '../lib/reports.js'
 
 const emit = defineEmits(['close'])
 
@@ -206,6 +207,25 @@ const reportOpen = ref(null) // target key with the row expanded
 const reported = ref({}) // target -> true after a report
 const refugeTarget = (r) =>
   `refuge:${r.src}:${r.lon.toFixed(4)},${r.lat.toFixed(4)}`
+
+// Read-back: what earlier visitors said about this shelter, shown
+// next to the city's promise, never merged with it. Same labels as
+// the report buttons, so the words match what was tapped.
+const crowd = ref({})
+reportCounts().then((c) => { crowd.value = c })
+const crowdLine = (r) => {
+  const counts = crowd.value[refugeTarget(r)]
+  if (!counts) return ''
+  const label = {
+    closed: t.value.rClosed, hours: t.value.rHours,
+    location: t.value.rLoc, good: t.value.rGood,
+  }
+  const parts = REPORT_ISSUES
+    .filter((i) => counts[i] > 0)
+    .map((i) => `${label[i]}${counts[i] > 1 ? ` ×${counts[i]}` : ''}`)
+  return parts.length
+    ? `${t.value.crowdSays} ${parts.join(' · ')}` : ''
+}
 function sendReport(target, issue) {
   reported.value = { ...reported.value, [target]: true }
   reportOpen.value = null
@@ -307,6 +327,7 @@ onUnmounted(() => {
           <a class="big route" :href="routeURL(r)" target="_blank"
             rel="noopener" @click="ping('cool_route')">➜
             {{ t.route }}</a>
+          <p v-if="crowdLine(r)" class="crowd">{{ crowdLine(r) }}</p>
           <p v-if="reported[refugeTarget(r)]" class="thanks">
             {{ t.thanksR }}</p>
           <button v-else-if="reportOpen !== refugeTarget(r)"
@@ -608,6 +629,11 @@ h2 {
   font-size: 16px;
   font-weight: 600;
   color: var(--accent);
+}
+.crowd {
+  margin-top: 10px;
+  font-size: 15px;
+  color: var(--ink-2);
 }
 .osmfix {
   display: block;

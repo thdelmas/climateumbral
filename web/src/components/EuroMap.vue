@@ -734,6 +734,11 @@ defineExpose({ frontline, goTo, shelterTonight })
   font-size: 12px;
   margin: 4px 0;
 }
+.map :deep(.refuge-pop .crowd) {
+  color: var(--ink-2);
+  font-size: 12px;
+  margin: 4px 0 0;
+}
 .map :deep(.refuge-pop .report-row) {
   margin-top: 7px;
   display: flex;

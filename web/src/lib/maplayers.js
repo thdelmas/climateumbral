@@ -6,6 +6,7 @@ import maplibregl from 'maplibre-gl'
 import { fetchRefuges, refugesGeojson } from './refuges.js'
 import { fetchStations, stationsGeojson, obsLabel, lagDays }
   from './stations.js'
+import { reportCounts, REPORT_ISSUES } from './reports.js'
 
 export const EMPTY_FC = { type: 'FeatureCollection', features: [] }
 
@@ -261,6 +262,25 @@ export function openRefugePopup(map, f) {
   // into the report ledger — the key is forever
   const target =
     `refuge:${p.src ?? 'unknown'}:${lon.toFixed(4)},${lat.toFixed(4)}`
+  // what earlier visitors said — the crowd's answer, shown next to
+  // the city's promise, never merged with it
+  const crowd = document.createElement('div')
+  crowd.className = 'crowd'
+  reportCounts().then((byTarget) => {
+    const counts = byTarget[target]
+    if (!counts) return
+    const labels = {
+      closed: 'closed', hours: 'wrong hours',
+      location: 'wrong location', good: '👍',
+    }
+    const parts = REPORT_ISSUES
+      .filter((i) => counts[i] > 0)
+      .map((i) => `${labels[i]}${counts[i] > 1 ? ` ×${counts[i]}` : ''}`)
+    if (parts.length) {
+      crowd.textContent = `visitors reported: ${parts.join(' · ')}`
+    }
+  })
+  el.appendChild(crowd)
   const row = document.createElement('div')
   row.className = 'report-row'
   for (const [issue, label] of [
