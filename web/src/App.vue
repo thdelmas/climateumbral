@@ -65,6 +65,18 @@ const coolT = STRINGS[pickLang()]
 window.addEventListener('hashchange', () => {
   coolOpen.value = location.hash === '#cool'
 })
+// The doorway must survive scrolling: once the top banner leaves
+// the viewport, a fixed pill takes over (the nav link clips off
+// narrow screens, so it can't be the fallback). Starts true so the
+// pill never flashes during load at the top of the page.
+const sosEl = ref(null)
+const sosInView = ref(true)
+onMounted(() => {
+  if (!('IntersectionObserver' in window) || !sosEl.value) return
+  new IntersectionObserver(
+    ([e]) => (sosInView.value = e.isIntersecting),
+  ).observe(sosEl.value)
+})
 function closeCool() {
   coolOpen.value = false
   if (location.hash === '#cool') {
@@ -424,8 +436,13 @@ onMounted(async () => {
     </div>
   </nav>
   <CoolNow v-if="coolOpen" @close="closeCool" />
+  <a
+    v-if="!coolOpen && !sosInView"
+    class="sosfab"
+    href="#cool"
+  >🥵 {{ coolT.title }} <b>{{ coolT.find }} →</b></a>
   <div id="top" class="wrap" :inert="coolOpen">
-    <a class="sos" href="#cool">
+    <a ref="sosEl" class="sos" href="#cool">
       🥵 {{ coolT.title }} <span>{{ coolT.find }} →</span>
     </a>
     <IntroHeader />
@@ -570,6 +587,13 @@ onMounted(async () => {
 .topnav .hot {
   color: var(--ember);
   font-weight: 700;
+  /* the one link that may never scroll out of a narrow nav: it
+     sticks to the right edge while the rest slides under it */
+  position: sticky;
+  right: 0;
+  background: var(--bg);
+  padding-left: 10px;
+  box-shadow: -10px 0 8px -4px var(--bg);
 }
 /* The doorway to the panic path: first thing on the page, one big
    target, readable at arm's length. */
@@ -591,6 +615,38 @@ onMounted(async () => {
   font-size: 16px;
   font-weight: 600;
   color: var(--ink-2);
+}
+/* The doorway that follows you: appears when the banner scrolls
+   away, thumb-reachable, above the map's own controls. */
+.sosfab {
+  position: fixed;
+  right: 14px;
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  z-index: 30;
+  padding: 12px 16px;
+  border: 2px solid var(--ember);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  max-width: min(80vw, 340px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sosfab b {
+  font-weight: 600;
+  color: var(--ink-2);
+}
+/* narrow screens get the title alone — a clean pill beats an
+   ellipsized sentence */
+@media (max-width: 520px) {
+  .sosfab b {
+    display: none;
+  }
 }
 .wrap {
   max-width: 720px;
