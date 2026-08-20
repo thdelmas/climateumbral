@@ -16,9 +16,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"log"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -34,10 +36,11 @@ type refuge struct {
 	Web  string  `json:"web,omitempty"`
 	// Hours is a display string, as published ("Juni-Aug, MO-FR,
 	// 09-17 Uhr"). Week is structured per-day hours, Monday first,
-	// "" where unknown — only sources that publish per-day columns
-	// fill it, and only Week is honest enough to compute an
-	// open-now claim from. A guessed "open" sends a body to a
-	// locked door; freeform text stays display-only.
+	// "" where unknown — only sources whose published hours reduce
+	// to unambiguous per-day entries fill it (Paris's day columns,
+	// Barcelona's timetable tables), and only Week is honest enough
+	// to compute an open-now claim from. A guessed "open" sends a
+	// body to a locked door; freeform text stays display-only.
 	Hours string     `json:"hours,omitempty"`
 	Week  *[7]string `json:"week,omitempty"`
 	Src   string     `json:"src"`
@@ -272,12 +275,198 @@ func parseBCNRefuges(raw []byte) ([]refuge, error) {
 		out = append(out, refuge{
 			Lon: lon, Lat: lat, Name: name, Addr: addr,
 			Web: web, Src: "bcn",
+			Week: parseBCNTimetable(get(row, "timetable")),
 		})
 	}
 	if len(out) == 0 {
 		return nil, errors.New("bcn refuges: no rows parsed")
 	}
 	return out, nil
+}
+
+// The BCN CSV's `timetable` column is an HTML table meant for the
+// city's own pages (the Ajuntament confirmed this shape, 2026-08).
+// Its cells are regular enough to reduce to per-day hours: day
+// phrases are a small Catalan vocabulary, hour cells read
+// "de 10.00 h a 14.00 h" with " i " joining split days, "Tancat"
+// marks closure. Seasonal tables carry one row set per period and
+// the feed marks the period that applies now with a `current`
+// class — that mark is upstream's, regenerated on their weekly
+// cadence, so honoring it at parse time matches the data's own
+// freshness.
+var (
+	bcnTimeTR   = regexp.MustCompile(`(?s)<tr[^>]*>(.*?)</tr>`)
+	bcnTimeTD   = regexp.MustCompile(`(?s)<td class="timetable-(\w+)([^"]*)"(?:\s+rowspan=(\d+))?[^>]*>(.*?)</td>`)
+	bcnTimeTag  = regexp.MustCompile(`<[^>]+>`)
+	bcnHourSpan = regexp.MustCompile(`(\d{1,2})(?:[.:](\d{2}))?\s*h?\s*a\s*(\d{1,2})(?:[.:](\d{2}))?`)
+	bcnAllDays  = regexp.MustCompile(`tots?\s+els?\s+dies|cada\s+dia`)
+	bcnDayRange = regexp.MustCompile(`de\s+(\p{L}+)\s+a\s+(\p{L}+)`)
+	bcnDayWord  = regexp.MustCompile(`\p{L}+`)
+	bcnAnyDigit = regexp.MustCompile(`\d`)
+)
+
+var bcnDayIdx = map[string]int{
+	"dilluns": 0, "dimarts": 1, "dimecres": 2, "dijous": 3,
+	"divendres": 4, "dissabte": 5, "dissabtes": 5,
+	"diumenge": 6, "diumenges": 6,
+}
+
+// bcnCellText flattens one cell to plain text: tags out, entities
+// decoded (&nbsp; arrives literally in the feed), spaces collapsed.
+func bcnCellText(cell string) string {
+	s := html.UnescapeString(bcnTimeTag.ReplaceAllString(cell, " "))
+	return strings.Join(strings.Fields(s), " ")
+}
+
+// bcnDays maps a day phrase to weekday indexes (Monday 0). A phrase
+// with a digit is a dated exception ("Dimarts 23 de juny") — those
+// single-day overrides are skipped rather than smeared over every
+// week of the season. "festius" has no weekday to land on and is
+// ignored. closed reports a "tancat" living in the day cell itself
+// ("Tots els dies tancat"), where the hour cell may be empty.
+func bcnDays(phrase string) (days []int, closed bool) {
+	p := strings.ToLower(phrase)
+	if bcnAnyDigit.MatchString(p) {
+		return nil, false
+	}
+	closed = strings.Contains(p, "tancat") ||
+		strings.Contains(p, "tancada")
+	if bcnAllDays.MatchString(p) {
+		return []int{0, 1, 2, 3, 4, 5, 6}, closed
+	}
+	if m := bcnDayRange.FindStringSubmatch(p); m != nil {
+		a, okA := bcnDayIdx[m[1]]
+		b, okB := bcnDayIdx[m[2]]
+		if okA && okB && a <= b {
+			for d := a; d <= b; d++ {
+				days = append(days, d)
+			}
+			return days, closed
+		}
+	}
+	seen := [7]bool{}
+	for _, w := range bcnDayWord.FindAllString(p, -1) {
+		if d, ok := bcnDayIdx[w]; ok && !seen[d] {
+			seen[d] = true
+			days = append(days, d)
+		}
+	}
+	return days, closed
+}
+
+// bcnHours normalizes one hour cell to "HH:MM-HH:MM" ranges joined
+// by ", " — the shape the client computes open-now from. "" means
+// the cell said nothing usable, which must stay "unknown", never
+// "closed".
+func bcnHours(phrase string) string {
+	p := strings.ToLower(phrase)
+	if strings.Contains(p, "tancat") || strings.Contains(p, "tancada") {
+		return "tancat"
+	}
+	spans := []string{}
+	for _, m := range bcnHourSpan.FindAllStringSubmatch(p, -1) {
+		fh, _ := strconv.Atoi(m[1])
+		th, _ := strconv.Atoi(m[3])
+		fm, tm := m[2], m[4]
+		if fm == "" {
+			fm = "00"
+		}
+		if tm == "" {
+			tm = "00"
+		}
+		if fh > 24 || th > 24 {
+			continue
+		}
+		spans = append(spans,
+			fmt.Sprintf("%02d:%s-%02d:%s", fh, fm, th, tm))
+	}
+	return strings.Join(spans, ", ")
+}
+
+// parseBCNTimetable reduces one timetable HTML table to a week, or
+// nil when nothing unambiguous survives. Seasonal tables without a
+// `current` mark (their periods are all out of season today) yield
+// nil — no claim beats a wrong one. rowspan carries day and period
+// cells down across their following rows, faithful to the feed.
+func parseBCNTimetable(tbl string) *[7]string {
+	if !strings.Contains(tbl, "timetable-") {
+		return nil
+	}
+	hasPeriod := strings.Contains(tbl, "timetable-period")
+	if hasPeriod && !strings.Contains(tbl, "timetable-period current") {
+		return nil
+	}
+	type carry struct {
+		left    int
+		text    string
+		current bool
+	}
+	carried := map[string]*carry{}
+	var week [7]string
+	got := false
+	for _, trm := range bcnTimeTR.FindAllStringSubmatch(tbl, -1) {
+		tr := trm[1]
+		if strings.Contains(tr, "timetable-header") {
+			continue
+		}
+		cells := map[string]string{}
+		current := map[string]bool{}
+		dayCarried := false
+		for _, m := range bcnTimeTD.FindAllStringSubmatch(tr, -1) {
+			cls, extra, body := m[1], m[2], bcnCellText(m[4])
+			cells[cls] = body
+			current[cls] = strings.Contains(extra, "current")
+			if n, err := strconv.Atoi(m[3]); err == nil && n > 1 {
+				carried[cls] = &carry{
+					left: n - 1, text: body,
+					current: strings.Contains(extra, "current"),
+				}
+			}
+		}
+		for _, cls := range []string{"period", "day", "hour"} {
+			c := carried[cls]
+			if _, here := cells[cls]; !here && c != nil && c.left > 0 {
+				cells[cls] = c.text
+				current[cls] = c.current
+				c.left--
+				if cls == "day" {
+					dayCarried = true
+				}
+			}
+		}
+		if hasPeriod && !current["period"] {
+			continue
+		}
+		days, closed := bcnDays(cells["day"])
+		if len(days) == 0 {
+			continue
+		}
+		h := "tancat"
+		if !closed {
+			h = bcnHours(cells["hour"])
+			if h == "" {
+				continue
+			}
+		}
+		for _, d := range days {
+			// A day cell spanning several hour rows is the feed's
+			// row-by-row way of writing a split day — those ranges
+			// accumulate. A fresh day cell naming an already-set
+			// day is a refinement ("Dissabte" after "De dilluns a
+			// dissabte") — that one replaces.
+			if dayCarried && week[d] != "" &&
+				week[d] != "tancat" && h != "tancat" {
+				week[d] += ", " + h
+			} else {
+				week[d] = h
+			}
+		}
+		got = true
+	}
+	if !got {
+		return nil
+	}
+	return &week
 }
 
 // parisIndoorTypes: the tier promise is a ROOM — roof, cool air. The

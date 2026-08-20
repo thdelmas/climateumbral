@@ -61,6 +61,134 @@ func TestParseBCNRefuges(t *testing.T) {
 	}
 }
 
+// Timetable fixtures — each the shape of a real feed variant, no
+// real records. The feed serves &nbsp; as a literal entity and
+// marks the applicable seasonal period with a `current` class.
+const bcnTTSimple = `<table class="timetable-table">` +
+	`<tr class="timetable-header"><th class="weekdays">Dies</th>` +
+	`<th class="hours">Hores</th></tr>` +
+	`<tr><td class="timetable-day" rowspan=1><div>De dilluns a ` +
+	`divendres</div></td><td class="timetable-hour" rowspan=1>` +
+	`<div>de 10.30&nbsp;h a 20.30&nbsp;h</div></td></tr>` +
+	`<tr><td class="timetable-day" rowspan=1><div>Dissabte</div>` +
+	`</td><td class="timetable-hour" rowspan=1><div>de ` +
+	`09.30&nbsp;h a 13.30&nbsp;h i de 15.30&nbsp;h a ` +
+	`20.00&nbsp;h</div></td></tr>` +
+	`<tr><td class="timetable-day" rowspan=1><div>Diumenge i ` +
+	`festius</div></td><td class="timetable-hour" rowspan=1>` +
+	`<div>Tancat</div></td></tr></table>`
+
+const bcnTTPeriods = `<table class="timetable-table">` +
+	`<tr class="timetable-header"><th class="period">Període</th>` +
+	`<th class="weekdays">Dies</th><th class="hours">Hores</th></tr>` +
+	`<tr><td class="timetable-period" rowspan=1><div>De l'1 juny ` +
+	`al 31 juliol</div></td><td class="timetable-day" rowspan=1>` +
+	`<div>Dissabte</div></td><td class="timetable-hour" rowspan=1>` +
+	`<div>de 10.30&nbsp;h a 13.00&nbsp;h</div></td></tr>` +
+	`<tr><td class="timetable-period current" rowspan=2><div>De ` +
+	`l'1 agost al 31 agost</div></td><td class="timetable-day" ` +
+	`rowspan=2><div>Tots els dies</div></td>` +
+	`<td class="timetable-hour" rowspan=1><div>de 08.00&nbsp;h a ` +
+	`14.00&nbsp;h</div></td></tr>` +
+	`<tr><td class="timetable-hour" rowspan=1><div>de ` +
+	`16.00&nbsp;h a 20.00&nbsp;h</div></td></tr>` +
+	`<tr><td class="timetable-period" rowspan=1><div>De l'1 ` +
+	`setembre al 12 setembre</div></td><td class="timetable-day" ` +
+	`rowspan=1><div>Dimarts 23 de juny</div></td>` +
+	`<td class="timetable-hour" rowspan=1><div>de 10.30&nbsp;h a ` +
+	`13.00&nbsp;h</div></td></tr></table>`
+
+func TestParseBCNTimetableSimple(t *testing.T) {
+	w := parseBCNTimetable(bcnTTSimple)
+	if w == nil {
+		t.Fatal("want a week from the simple table")
+	}
+	for d := 0; d < 5; d++ {
+		if w[d] != "10:30-20:30" {
+			t.Errorf("day %d = %q", d, w[d])
+		}
+	}
+	if w[5] != "09:30-13:30, 15:30-20:00" {
+		t.Errorf("split saturday = %q", w[5])
+	}
+	if w[6] != "tancat" {
+		t.Errorf("closed sunday = %q", w[6])
+	}
+}
+
+func TestParseBCNTimetablePeriods(t *testing.T) {
+	w := parseBCNTimetable(bcnTTPeriods)
+	if w == nil {
+		t.Fatal("want a week from the current period")
+	}
+	// only the `current` period's rows count; its day cell spans
+	// two hour rows (rowspan) — the feed's row-by-row spelling of
+	// a split day, so the two ranges accumulate; the dated
+	// exception row after it drops
+	for d := 0; d < 7; d++ {
+		if w[d] != "08:00-14:00, 16:00-20:00" {
+			t.Errorf("day %d = %q", d, w[d])
+		}
+	}
+}
+
+func TestParseBCNTimetableNoClaim(t *testing.T) {
+	// seasonal table, no period marked current -> no claim
+	noCurrent := strings.Replace(bcnTTPeriods,
+		"timetable-period current", "timetable-period", 1)
+	if w := parseBCNTimetable(noCurrent); w != nil {
+		t.Errorf("out-of-season table must claim nothing: %+v", w)
+	}
+	if w := parseBCNTimetable(""); w != nil {
+		t.Errorf("empty cell must claim nothing: %+v", w)
+	}
+	// a dated exception row alone must not produce a week
+	dated := `<table class="timetable-table"><tr><td ` +
+		`class="timetable-day" rowspan=1><div>Dimarts 23 de juny` +
+		`</div></td><td class="timetable-hour" rowspan=1><div>de ` +
+		`10.00&nbsp;h a 14.00&nbsp;h</div></td></tr></table>`
+	if w := parseBCNTimetable(dated); w != nil {
+		t.Errorf("dated exception must claim nothing: %+v", w)
+	}
+}
+
+func TestParseBCNTimetableAllClosed(t *testing.T) {
+	// "Tots els dies tancat" lives in the day cell, hour cell empty
+	closed := `<table class="timetable-table"><tr><td ` +
+		`class="timetable-day" rowspan=1><div>Tots els dies tancat` +
+		`</div></td><td class="timetable-hour" rowspan=1><div></div>` +
+		`</td></tr></table>`
+	w := parseBCNTimetable(closed)
+	if w == nil {
+		t.Fatal("want an all-closed week")
+	}
+	for d := 0; d < 7; d++ {
+		if w[d] != "tancat" {
+			t.Errorf("day %d = %q", d, w[d])
+		}
+	}
+}
+
+func TestParseBCNRefugesTimetableColumn(t *testing.T) {
+	// the timetable column is optional — pins survive without it
+	// (bcnFixture has none) and fill Week when it is present
+	csv := "register_id,name,timetable," +
+		"geo_epgs_4326_lat,geo_epgs_4326_lon\n" +
+		`200001,Casal de Prova,"` +
+		strings.ReplaceAll(bcnTTSimple, `"`, `""`) +
+		`",41.40,2.15` + "\n"
+	got, err := parseBCNRefuges([]byte(csv))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Week == nil {
+		t.Fatalf("want 1 refuge with a week: %+v", got)
+	}
+	if got[0].Week[0] != "10:30-20:30" {
+		t.Errorf("monday = %q", got[0].Week[0])
+	}
+}
+
 func TestParseBCNRefugesUTF8Fallback(t *testing.T) {
 	// same content served without UTF-16 must still parse
 	got, err := parseBCNRefuges([]byte(bcnFixture))

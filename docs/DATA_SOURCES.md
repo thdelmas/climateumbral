@@ -70,9 +70,26 @@ Use the **CSV resource** (1.3 MB); the JSON twin of the same data is 40 MB.
 3. **The `values_*` columns are an attribute join.** Today the feed is one row
    per refuge; sibling datasets fan the same schema out to row-per-attribute.
    Dedupe on `register_id` so a fan-out becomes a no-op instead of 5× pins.
-4. **`timetable` is embedded HTML** (a full `<table>`). Don't strip-and-truncate
-   it into garbled hours — link the refuge's own `Web` attribute instead and
-   say "check hours before you go".
+4. **`timetable` is embedded HTML** (a full `<table>`) — since 2026-08-20
+   reduced to structured per-day hours by `parseBCNTimetable` (the
+   Ajuntament confirmed the column's shape by mail, 2026-08-20; ~369 of
+   545 rows reduce cleanly, the rest claim nothing). Its own sub-traps,
+   all live in the feed:
+   - `&nbsp;` arrives as a **literal entity**, undecoded — unescape before
+     any regex sees the text.
+   - Seasonal tables mark the applicable period with a
+     `timetable-period current` class. Periods present but **no `current`
+     mark = every period is out of season today** — claim nothing.
+   - A day cell whose `rowspan` spans several hour rows is the feed's
+     row-by-row spelling of a **split day** — ranges accumulate. A fresh
+     day cell naming an already-set day is a refinement — it replaces.
+   - Day phrases containing digits are **dated exceptions** ("Dimarts 23
+     de juny") — skip them rather than smear one date over every week.
+   - "Tancat"/"Tancada" can live in the day cell itself ("Tots els dies
+     tancat"), with the hour cell empty.
+   The JSON twin additionally carries per-refuge **iCal** timetables
+   (Ajuntament's pointer) — richer, but 40 MB against an 8 MB fetch cap;
+   the CSV tables carry the same weekly truth.
 5. The `barcelona.cat` refuge pages themselves answer **HTTP 418 to bots** —
    verify links by shape (from the city's own data), not by fetching.
 
@@ -81,8 +98,9 @@ Use the **CSV resource** (1.3 MB); the JSON twin of the same data is 40 MB.
 Verified live 2026-07-20. Adapter #2 (`parseParisRefuges`). 533 sites in
 the feed, of which **279 make the shelter tier** after filtering (see
 trap 1) and deduping. ODbL, refreshed **daily** upstream (hours sync from
-paris.fr); mirrored with the same 7-day TTL — we don't show hours, so
-daily freshness isn't load-bearing.
+paris.fr); mirrored with the same 7-day TTL — hours display and open-now
+come from the weekly mirror, so a few days of upstream drift is the
+accepted cost.
 
 Dataset page:
 ```

@@ -65,18 +65,30 @@ function status(r) {
   if (!r.week) return null
   const today = r.week[(new Date().getDay() + 6) % 7]
   if (!today) return null
-  if (/ferm/i.test(today)) return { open: false, text: t.value.closedToday }
-  const m = today.match(
-    /^(\d{1,2})[h:](\d{2})?\s*-\s*(\d{1,2})[h:](\d{2})?$/)
-  if (!m) return { open: null, text: `${t.value.todayW}: ${today}` }
+  // closed words as the feeds write them: fermé (Paris), tancat (BCN)
+  if (/ferm|tancat/i.test(today)) {
+    return { open: false, text: t.value.closedToday }
+  }
+  // Every "HH:MM-HH:MM" range in the day — Barcelona's split days
+  // arrive as "09:30-13:30, 15:30-20:00". A day string with no
+  // parseable range shows as-is and claims nothing.
+  const ranges = [...today.matchAll(
+    /(\d{1,2})[h:](\d{2})?\s*-\s*(\d{1,2})[h:](\d{2})?/g)]
+  if (!ranges.length) {
+    return { open: null, text: `${t.value.todayW}: ${today}` }
+  }
   const now = new Date()
   const cur = now.getHours() * 60 + now.getMinutes()
-  const from = +m[1] * 60 + +(m[2] ?? 0)
-  const to = +m[3] * 60 + +(m[4] ?? 0)
-  if (cur >= from && cur < to) {
-    return {
-      open: true,
-      text: `${t.value.openNow} · ${t.value.until} ${m[3]}h${m[4] ?? ''}`,
+  for (const m of ranges) {
+    const from = +m[1] * 60 + +(m[2] ?? 0)
+    let to = +m[3] * 60 + +(m[4] ?? 0)
+    if (to <= from) to += 1440 // "19:00-01:00" closes past midnight
+    if ((cur >= from && cur < to) ||
+        (cur + 1440 >= from && cur + 1440 < to)) {
+      return {
+        open: true,
+        text: `${t.value.openNow} · ${t.value.until} ${m[3]}h${m[4] ?? ''}`,
+      }
     }
   }
   return {
