@@ -132,8 +132,9 @@ See `docs/GAME_DESIGN.md` for incentive design and
 `docs/DATA_SOURCES.md` for verified endpoints and their traps.
 
 **Cities**: official climate-shelter networks are integrated one
-municipal open dataset at a time (Barcelona, Paris, Vienna and Grand
-Lyon so far). If you represent a city and want yours on the map,
+open dataset at a time (Barcelona, Paris, Vienna, Grand Lyon, and
+every municipality of Catalunya via the Generalitat's region-wide
+register so far). If you represent a city and want yours on the map,
 `docs/FOR_CITIES.md` says exactly what to publish and how to reach us.
 
 ## License

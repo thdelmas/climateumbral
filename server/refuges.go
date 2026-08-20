@@ -84,6 +84,14 @@ const lyonRefugesWFS = "https://download.data.grandlyon.com" +
 	"com_donnees_communales.equipementspublicsclimatises" +
 	"&outputFormat=application/json&SRSNAME=EPSG:4326"
 
+// Refugis climàtics dels municipis de Catalunya — Generalitat de
+// Catalunya (Departament d'Interior), CC BY 4.0. Every municipality's
+// declared refuges in one dataset: the first adapter that is a region,
+// not a city. Socrata API; $limit lifts the default 1000-row page well
+// above the ~2600 live rows, $order pins a stable read order.
+const catRefugesJSON = "https://analisi.transparenciacatalunya.cat" +
+	"/resource/9gu7-iwci.json?$limit=10000&$order=indicador_refugi"
+
 var refugeSources = []refugeSource{{
 	ID:          "bcn",
 	Name:        "Barcelona — Xarxa de refugis climàtics",
@@ -108,6 +116,12 @@ var refugeSources = []refugeSource{{
 	Attribution: "Métropole de Lyon, data.grandlyon.com (Licence Ouverte)",
 	URL:         lyonRefugesWFS,
 	parse:       parseLyonRefuges,
+}, {
+	ID:          "cat",
+	Name:        "Catalunya — Refugis climàtics municipals",
+	Attribution: "Generalitat de Catalunya, Dades Obertes (CC BY 4.0)",
+	URL:         catRefugesJSON,
+	parse:       parseCatRefuges,
 }}
 
 const (
@@ -720,6 +734,168 @@ func parseLyonRefuges(raw []byte) ([]refuge, error) {
 	}
 	if len(out) == 0 {
 		return nil, errors.New("lyon refuges: no rows parsed")
+	}
+	return out, nil
+}
+
+// Catalunya's register is declared data: each row exists because a
+// municipality (or the metropolitan area) filed that place as a
+// climate refuge, so — like Barcelona's own network and unlike the
+// Paris/Lyon feeds — every row belongs to the tier and no type
+// whitelist applies. What the feed lacks is hygiene: it aggregates
+// hand-entered municipal submissions, and roughly half the
+// coordinates arrive with the decimal point stripped ("41521503"
+// for 41.521503) at whatever precision the town hall typed. The
+// same disease eats leading zeros — longitudes below 1°E lose
+// their "0." entirely, municipality codes lose the zero of "08"
+// and sometimes their check digit too. Recovery below; a row that
+// stays ambiguous is dropped and counted, because a missing pin
+// beats a misplaced one.
+
+// All of Catalunya lies in 40.4–43.0°N, and latitudes always keep
+// two integer digits (40–42), so a stripped latitude re-points
+// unambiguously. Longitudes need the per-province windows.
+const (
+	catLatMin = 40.4
+	catLatMax = 43.0
+)
+
+// catProvLon: each province's longitude window, loose enough to hold
+// every municipality in it, tight enough that at most one of a
+// mangled longitude's two candidate readings fits (they differ by
+// ~10×). Verified over the full live feed 2026-08-20: 0 ambiguous,
+// 3 dropped (rows whose clean-looking longitude sits in the wrong
+// province — real upstream geocoding errors the window catches).
+var catProvLon = map[string][2]float64{
+	"08": {1.30, 2.90}, // Barcelona
+	"17": {1.60, 3.35}, // Girona
+	"25": {0.30, 1.90}, // Lleida
+	"43": {0.20, 1.70}, // Tarragona
+}
+
+// catProvince: the INE municipality code's first two digits name the
+// province, but the feed's codes lose leading zeros and sometimes
+// the trailing check digit ("080193" arrives as "80193", even
+// "8180"). Only Barcelona's "08" has a zero to lose, so any code
+// leading with an 8 is Barcelona province.
+func catProvince(code string) string {
+	for _, p := range []string{"17", "25", "43"} {
+		if strings.HasPrefix(code, p) {
+			return p
+		}
+	}
+	if strings.HasPrefix(code, "08") || strings.HasPrefix(code, "8") {
+		return "08"
+	}
+	return ""
+}
+
+// catLat accepts a sane decimal in range, or re-points a stripped
+// digit run after its two integer digits.
+func catLat(s string) (float64, bool) {
+	if !strings.Contains(s, ".") && len(s) >= 3 {
+		s = s[:2] + "." + s[2:]
+	}
+	v, err := strconv.ParseFloat(s, 64)
+	return v, err == nil && v >= catLatMin && v <= catLatMax
+}
+
+// catLon re-points a stripped longitude. Two readings are possible —
+// the point went after the first digit ("1901389" → 1.901389) or a
+// leading zero was lost too ("621424" → 0.621424) — and the province
+// window admits at most one. Neither fitting reads as unrecoverable,
+// and the n==1 guard stays even though both-fit is impossible by
+// window construction.
+func catLon(s string, win [2]float64) (float64, bool) {
+	if strings.Contains(s, ".") {
+		v, err := strconv.ParseFloat(s, 64)
+		return v, err == nil && v >= win[0] && v <= win[1]
+	}
+	if len(s) < 2 {
+		return 0, false
+	}
+	got, n := 0.0, 0
+	for _, c := range []string{s[:1] + "." + s[1:], "0." + s} {
+		if v, err := strconv.ParseFloat(c, 64); err == nil &&
+			v >= win[0] && v <= win[1] {
+			got, n = v, n+1
+		}
+	}
+	return got, n == 1
+}
+
+// parseCatRefuges reads the Socrata JSON rows. Beyond the coordinate
+// recovery above: Barcelona files its network here too (546 rows),
+// but the city's own dataset is adapter #1 with richer data
+// (timetables → open-now), so the region adapter yields to it rather
+// than double-pin every shelter; `indicador_refugi` is the identity
+// (one metropolitan park spanning two municipalities appears twice);
+// `informacio_web` carries URLs, bare "www." hosts, and free text
+// (opening hours, phone numbers) in one column — only link-shaped
+// values become links, and the free text is NOT surfaced as hours
+// because nothing marks which rows are hours at all.
+func parseCatRefuges(raw []byte) ([]refuge, error) {
+	var rows []struct {
+		ID   string `json:"indicador_refugi"`
+		Name string `json:"nom"`
+		Mun  string `json:"municipi"`
+		Code string `json:"codi_municipi"`
+		Lat  string `json:"latitud"`
+		Lon  string `json:"longitud"`
+		Addr string `json:"adreca"`
+		Web  string `json:"informacio_web"`
+	}
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		return nil, fmt.Errorf("cat refuges: %w", err)
+	}
+	seen := map[string]bool{}
+	out := []refuge{}
+	dropped := 0
+	for _, r := range rows {
+		if r.Mun == "Barcelona" {
+			continue // the city's own adapter owns these pins
+		}
+		if r.ID == "" || seen[r.ID] || r.Name == "" {
+			continue
+		}
+		win, okProv := catProvLon[catProvince(r.Code)]
+		if !okProv {
+			dropped++
+			continue
+		}
+		lat, okLat := catLat(r.Lat)
+		lon, okLon := catLon(r.Lon, win)
+		if !okLat || !okLon {
+			dropped++
+			continue
+		}
+		seen[r.ID] = true
+		addr := strings.Join(strings.Fields(r.Addr), " ")
+		if r.Mun != "" {
+			if addr != "" {
+				addr += " · "
+			}
+			addr += r.Mun
+		}
+		web := strings.TrimSpace(r.Web)
+		switch {
+		case strings.HasPrefix(web, "http"):
+		case strings.HasPrefix(strings.ToLower(web), "www."):
+			web = "https://" + web
+		default:
+			web = ""
+		}
+		out = append(out, refuge{
+			Lon: lon, Lat: lat, Name: r.Name, Addr: addr,
+			Web: web, Src: "cat",
+		})
+	}
+	if len(out) == 0 {
+		return nil, errors.New("cat refuges: no rows parsed")
+	}
+	if dropped > 0 {
+		log.Printf("cat refuges: %d rows dropped (unrecoverable coordinates)",
+			dropped)
 	}
 	return out, nil
 }

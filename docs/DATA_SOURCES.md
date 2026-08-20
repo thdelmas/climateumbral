@@ -204,6 +204,60 @@ https://download.data.grandlyon.com/wfs/grandlyon?SERVICE=WFS&VERSION=2.0.0&REQU
    whitespace.
 5. Same axis-flip guard as Vienna (loose Grand Lyon bbox, loud failure).
 
+## Official climate shelters: Dades Obertes Catalunya, Refugis climàtics municipals
+
+Verified live 2026-08-20. Adapter #5 (`parseCatRefuges`) — the first
+**region** adapter: one dataset carries every Catalan municipality's
+declared refuges (pointed to us by the Ajuntament de Barcelona's own
+refuges team). 2,590 rows live, of which **2,040 pin** after yielding
+Barcelona to adapter #1, deduping, and dropping 3 unrecoverable rows.
+Generalitat de Catalunya, Departament d'Interior; CC BY 4.0; updated
+continuously as municipalities file (mirrored with the 7-day TTL).
+
+Dataset page:
+```
+https://analisi.transparenciacatalunya.cat/Seguretat/Refugis-clim-tics-dels-municipis-de-Catalunya/9gu7-iwci
+```
+
+Use the Socrata JSON API (`/resource/9gu7-iwci.json`) with
+`$limit=10000` — the default page is 1,000 rows — and
+`$order=indicador_refugi` for a stable read.
+
+### Its traps
+
+1. **~46% of coordinates lost their decimal point.** Municipality-typed
+   values arrive as digit runs at arbitrary precision: `"41521503"` is
+   41.521503, `"4199888810552947"` is 41.998888…. Latitude re-points
+   unambiguously (all of Catalunya is 40–43°N, the point goes after two
+   digits). Longitude is genuinely ambiguous — `"1901389"` could read
+   1.901389 or 0.1901389, both inside Catalunya.
+2. **Longitudes below 1°E also lost their leading zero** (`"621424"` =
+   0.621424), which is why the digit count alone can't give the scale.
+   Resolution: per-province longitude windows keyed off the INE
+   municipality code (Barcelona 1.30–2.90, Girona 1.60–3.35, Lleida
+   0.30–1.90, Tarragona 0.20–1.70) admit at most one of the two
+   candidate readings. Verified over the full feed: zero ambiguous.
+3. **Municipality codes are mangled too** — `"080193"` arrives as
+   `"80193"` or even `"8180"` (leading zero AND check digit gone). Only
+   `08` has a zero to lose, so any code leading with 8 is Barcelona
+   province; 17/25/43 pass through.
+4. **Barcelona files its 546 rows here as well.** Adapter #1 has the
+   same network with timetables (→ open-now), so the region adapter
+   skips `municipi == "Barcelona"` or every city shelter double-pins.
+5. **3 rows are mis-geocoded upstream** (Casal Cívic rows for Berga,
+   Sabadell, Vilafranca sitting 50–100 km west of their towns). Their
+   clean-looking longitudes fall outside their province's window, so
+   the same guard that fixes trap 2 drops them — logged, counted.
+6. **`informacio_web` is a mixed column**: URLs, bare `www.` hosts, and
+   free text (opening hours, phone numbers). Only link-shaped values
+   become links; the free text is NOT surfaced as hours because nothing
+   marks which rows are hours.
+7. **`indicador_refugi` is the identity**; one metropolitan park
+   spanning two municipalities (Parc de Torreblanca) appears twice.
+8. No opening hours anywhere in the schema — under PROCICAT heat
+   activation the refuges must open in defined windows, but that's
+   policy, not per-row data. Pins carry no open-now claim.
+
 ### Cities checked and NOT adaptable (2026-07-20, don't re-derive)
 
 - **Nantes** — `244400404_ilot-fraicheur-nantes-metropole` is 268 sites,

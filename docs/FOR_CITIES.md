@@ -7,8 +7,12 @@ easiest.*
 ClimateUmbral shows official climate shelters — rooms a city promises
 its residents on dangerous heat days — as pins on a public map of
 Europe, next to each block's modeled night heat. Barcelona, Paris,
-Vienna and Grand Lyon are live today. Adding your city costs us a day
-and costs you nothing but publishing data you likely already have.
+Vienna, Grand Lyon and all of Catalunya (via the Generalitat's
+region-wide register — one dataset, every municipality) are live
+today. Adding your city costs us a day and costs you nothing but
+publishing data you likely already have. A region or national
+register works even better: Catalunya's covered ~950 municipalities
+in one adapter.
 
 There is no EU-wide shelter dataset, so we integrate one municipal
 dataset at a time, straight from your own open-data portal. Your data

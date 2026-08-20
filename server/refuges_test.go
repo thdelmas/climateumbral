@@ -409,3 +409,91 @@ func TestParseLyonRefugesAxisFlip(t *testing.T) {
 		t.Fatal("want a loud error when lon/lat arrive swapped")
 	}
 }
+
+// Fabricated fixture, shaped like the live Socrata rows including the
+// feed's coordinate mangling: stripped decimal points, longitudes
+// missing their leading zero, municipality codes missing the zero of
+// "08" and sometimes the check digit.
+const catFixture = `[
+ {"nom":"Biblioteca de Prova","indicador_refugi":"170792|BIB_PROVA",
+  "municipi":"Vilaprova","codi_municipi":"170792",
+  "latitud":"41.97","longitud":"2.82",
+  "adreca":"C. Imaginari,  12","informacio_web":"https://example.org/b",
+  "tipologia":"Biblioteca"},
+ {"nom":"Casal Sense Punt","indicador_refugi":"80018|CASAL",
+  "municipi":"Vilapunt","codi_municipi":"80018",
+  "latitud":"41521503","longitud":"1901389",
+  "adreca":"","informacio_web":"www.example.org/casal"},
+ {"nom":"Piscina Zero Perdut","indicador_refugi":"250046|PISCINA",
+  "municipi":"Vilazero","codi_municipi":"250046",
+  "latitud":"4162300","longitud":"621424",
+  "informacio_web":"De dilluns a divendres de 9 a 14 h"},
+ {"nom":"Parc Codi Curt","indicador_refugi":"8180|PARC",
+  "municipi":"Vilacurta","codi_municipi":"8180",
+  "latitud":"41.504","longitud":"2.155"},
+ {"nom":"Refugi Repetit","indicador_refugi":"8180|PARC",
+  "municipi":"Vilacurta","codi_municipi":"8180",
+  "latitud":"41.504","longitud":"2.155"},
+ {"nom":"Bib. de la Ciutat","indicador_refugi":"080193|BIB_BCN",
+  "municipi":"Barcelona","codi_municipi":"080193",
+  "latitud":"41.40","longitud":"2.15"},
+ {"nom":"Casal Mal Geocodificat","indicador_refugi":"81878|MAL",
+  "municipi":"Vilalluny","codi_municipi":"81878",
+  "latitud":"41.6564146","longitud":"0.7986808"},
+ {"nom":"Sala Codi Estrany","indicador_refugi":"99999|SALA",
+  "municipi":"Vilaestranya","codi_municipi":"99999",
+  "latitud":"41.50","longitud":"2.10"}
+]`
+
+func TestParseCatRefuges(t *testing.T) {
+	got, err := parseCatRefuges([]byte(catFixture))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Barcelona, the duplicate id, the wrong-province longitude and
+	// the unknown municipality code all drop
+	if len(got) != 4 {
+		t.Fatalf("want 4 refuges, got %d: %+v", len(got), got)
+	}
+	r := got[0]
+	if r.Name != "Biblioteca de Prova" || r.Src != "cat" {
+		t.Errorf("name/src = %q/%q", r.Name, r.Src)
+	}
+	if r.Addr != "C. Imaginari, 12 · Vilaprova" {
+		t.Errorf("addr = %q (doubled spaces not collapsed?)", r.Addr)
+	}
+	if r.Lat != 41.97 || r.Lon != 2.82 {
+		t.Errorf("clean coords = %v,%v", r.Lat, r.Lon)
+	}
+	// stripped decimal points re-pointed
+	if got[1].Lat != 41.521503 || got[1].Lon != 1.901389 {
+		t.Errorf("re-pointed coords = %v,%v", got[1].Lat, got[1].Lon)
+	}
+	if got[1].Web != "https://www.example.org/casal" {
+		t.Errorf("bare www. host should become a link: %q", got[1].Web)
+	}
+	if got[1].Addr != "Vilapunt" {
+		t.Errorf("empty adreca should leave municipality: %q", got[1].Addr)
+	}
+	// longitude that lost its leading zero lands below 1°E, and the
+	// free text riding in informacio_web never becomes a link
+	if got[2].Lat != 41.623 || got[2].Lon != 0.621424 {
+		t.Errorf("zero-lost coords = %v,%v", got[2].Lat, got[2].Lon)
+	}
+	if got[2].Web != "" {
+		t.Errorf("free-text web should stay empty: %q", got[2].Web)
+	}
+	// a 4-digit municipality code still names Barcelona province
+	if got[3].Name != "Parc Codi Curt" {
+		t.Errorf("short-code row should survive: %+v", got[3])
+	}
+}
+
+func TestParseCatRefugesGarbage(t *testing.T) {
+	if _, err := parseCatRefuges([]byte("not json")); err == nil {
+		t.Fatal("want an error on garbage")
+	}
+	if _, err := parseCatRefuges([]byte("[]")); err == nil {
+		t.Fatal("want an error on an empty feed, not a silent empty layer")
+	}
+}
