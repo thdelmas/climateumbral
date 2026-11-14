@@ -85,4 +85,6 @@ help most, without having to trust a number nobody can check.
   Consequence for goal 2: a page must say that "0 % canopy" means "0 % as the
   regulation counts it at 10 m", never "no trees". Open question for the
   owner: add a second, finer canopy measure (PNOA LiDAR, free, 5 pts/m²), which
-  art. 3 allows as "supplementary data" when more precise.
+  art. 3 allows as "supplementary data" when more precise. Answered: yes,
+  deferred, tracked in issue #1; pages ship with the official measure and the
+  "0 % as the regulation counts it" wording.
