@@ -117,7 +117,10 @@ box. Pure Python 3, zero dependencies.
 
 `tools/zeu_metrics.py` — urban green space (EVU) and tree canopy (CAU)
 for one urban ecosystem area, the way Reg. (EU) 2024/1991 art. 8 counts
-them (see `docs/DATA_SOURCES.md`). Pure Python 3, zero dependencies.
+them (see `docs/DATA_SOURCES.md`); on the official years it returns the
+published Spanish values exactly. `tools/fetch_clms.py` fetches those
+years' tiles (two free Copernicus accounts). Pure Python 3, zero
+dependencies.
 
 ```
 python3 tools/fetch_grid.py 2.14 41.375 2.19 41.41 -o bcn

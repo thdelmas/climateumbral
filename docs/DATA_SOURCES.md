@@ -411,13 +411,19 @@ canopy cover (CAU) inside each urban ecosystem area (ZEU). Spain's method
   `GISCO_ID` (e.g. `ES_08019`), `LAU_NAME`, `DEGURBA`, `Area_UA_km2`. The
   official per-municipality values are a PDF on the same page ("Valores de
   referencia definitivos").
-- `tools/zeu_metrics.py` reproduces both numbers for one ZEU (stdlib only).
+- `tools/zeu_metrics.py` reproduces both numbers for one ZEU (stdlib only);
+  `tools/fetch_clms.py` downloads the official-year tiles from the two free
+  accounts below; `tools/geotiff.py` reads them (LZW, predictor 2, tiled).
+- **Verified 2026-11-14, official years (CLC+ 2023, TCD 2024), against the
+  official values:** Barcelona EVU 21.536 / CAU 7.035 km², Girona 9.809 /
+  4.198, Madrid 94.761 / 16.864, València 17.163 / 2.884: equal to the
+  published figures in all eight cases (CAU to the square metre).
 
 Where each layer lives (checked 2026-11-14):
 
 | Layer | Open EEA image service (no account) | Official year |
 |---|---|---|
-| CLC+ Backbone | 2018 and 2021, `CLC_plus/CLMS_CLCplus_RASTER_<year>_010m_eu` | 2023: WEkEO only (`EO:EEA:DAT:CLC-PLUS`, account) |
+| CLC+ Backbone | 2018 and 2021, `CLC_plus/CLMS_CLCplus_RASTER_<year>_010m_eu` | 2023: WEkEO only (`EO:EEA:DAT:CLC-PLUS`, account; the account must accept the term `Copernicus_Land_Monitoring_Service_Data_Policy` first, else search answers 404 "Terms Accepted ... not found") |
 | HRL Tree Cover Density | 2018 only (`GioLandPublic/HRL_TreeCoverDensity_2018`), the old product | 2018-present yearly 10 m ("VLCC" product): Copernicus Data Space S3 `eodata/CLMS/landcover_landuse/tree_cover_density/...`, account; tile list is a public CSV |
 | HRL Imperviousness | 2018 (what the map uses today) | 2024 + change 2021-24: WEkEO only (`EO:EEA:DAT:HRL:IMP`, account) |
 
@@ -427,6 +433,10 @@ endorsement.
 
 ### Its traps
 
+0. **Downloads are asynchronous on WEkEO.** `POST /dataaccess/download`
+   returns a job id; `GET /dataaccess/download/<id>` answers JSON while it
+   prepares, then serves the zip. CDSE's OData download redirects to
+   another host: re-attach the bearer token on the redirect.
 1. **TCD 2018 is not comparable with TCD 2024.** The yearly 10 m product
    is a new method. On the open 2018 layer CAU runs +3 % (Girona) to
    +101 % (Madrid) above the official 2024 values; only the 2024 layer can

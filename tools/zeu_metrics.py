@@ -17,7 +17,12 @@ Zero dependencies: stdlib only. The ZEU polygon comes from a GeoPackage
 
 Usage:
     python3 zeu_metrics.py ZEU.gpkg GISCO_ID [--clc YEAR] [--tcd YEAR]
+                           [--clc-tif TIF ...] [--tcd-tif TIF ...]
                            [--ref EVU_KM2 CAU_KM2] [--json OUT]
+
+--clc-tif / --tcd-tif read local GeoTIFF tiles (EPSG:3035, 10 m) instead of
+the open image service: that is how the official years (CLC+ 2023, TCD
+2024) come in, since only older years are served openly.
 
 Example (Barcelona):
     python3 zeu_metrics.py Limites_ZEU_2024_100K_ES.gpkg ES_08019 \\
@@ -37,6 +42,7 @@ import urllib.parse
 import urllib.request
 
 from fetch_grid import parse_tiff
+from geotiff import mosaic
 
 EEA = "https://image.discomap.eea.europa.eu/arcgis/rest/services"
 # year -> exportImage endpoint on the open EEA image service
@@ -191,6 +197,8 @@ def main():
     ap.add_argument("gisco_id")
     ap.add_argument("--clc", default="2021", choices=sorted(CLC_SOURCES))
     ap.add_argument("--tcd", default="2018", choices=sorted(TCD_SOURCES))
+    ap.add_argument("--clc-tif", nargs="+", help="local CLC+ Backbone tiles")
+    ap.add_argument("--tcd-tif", nargs="+", help="local Tree Cover Density tiles")
     ap.add_argument("--ref", nargs=2, type=float, metavar=("EVU_KM2", "CAU_KM2"),
                     help="official values to compare against")
     ap.add_argument("--json", help="write the result here")
@@ -206,8 +214,8 @@ def main():
     w, h = (x1 - x0) // PIXEL, (y1 - y0) // PIXEL
 
     mask = mask_for(polys, x0, y1, w, h)
-    clc = grid(CLC_SOURCES[a.clc], x0, y1, w, h)
-    tcd = grid(TCD_SOURCES[a.tcd], x0, y1, w, h)
+    clc = mosaic(a.clc_tif, x0, y1, w, h) if a.clc_tif else grid(CLC_SOURCES[a.clc], x0, y1, w, h)
+    tcd = mosaic(a.tcd_tif, x0, y1, w, h) if a.tcd_tif else grid(TCD_SOURCES[a.tcd], x0, y1, w, h)
 
     inside = evu_px = tcd_sum = tcd_nodata = 0
     for i in range(w * h):
@@ -229,7 +237,8 @@ def main():
         "gisco_id": a.gisco_id, "name": rec.get("LAU_NAME"),
         "zeu_area_km2_official": rec.get("Area_UA_km2"),
         "zeu_area_km2_pixels": round(area_km2, 3),
-        "clc_year": a.clc, "tcd_year": a.tcd,
+        "clc_source": "local tiles" if a.clc_tif else "EEA image service " + a.clc,
+        "tcd_source": "local tiles" if a.tcd_tif else "EEA image service " + a.tcd,
         "evu_km2": round(evu_km2, 4), "evu_pct": round(100 * evu_km2 / area_km2, 3),
         "cau_km2": round(cau_km2, 4), "cau_pct": round(100 * cau_km2 / area_km2, 3),
         "tcd_nodata_px": tcd_nodata, "grid": [w, h],
