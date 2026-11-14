@@ -5,8 +5,18 @@ stripped, compression none (1), LZW (5) or Deflate (8, 32946), horizontal
 predictor (2), north-up with ModelPixelScale + ModelTiepoint. Only the
 blocks that overlap the window are decoded.
 """
+import collections
 import struct
 import zlib
+
+_OPEN = {}
+
+
+def open_tif(path):
+    """One reader per file, kept open so its block cache is reused."""
+    if path not in _OPEN:
+        _OPEN[path] = GeoTIFF(path)
+    return _OPEN[path]
 
 
 def lzw_decode(data):
@@ -71,7 +81,7 @@ class GeoTIFF:
             self.bw, self.bh = self.width, t.get(278, [self.height])[0]
             self.offs, self.counts = t[273], t[279]
         self.per_row = -(-self.width // self.bw)
-        self.cache = {}
+        self.cache = collections.OrderedDict()  # LRU of decoded blocks
 
     def _ifd(self, off):
         bo, f = self.bo, self.f
@@ -95,6 +105,7 @@ class GeoTIFF:
 
     def _block(self, i):
         if i in self.cache:
+            self.cache.move_to_end(i)
             return self.cache[i]
         off, cnt = self.offs[i], self.counts[i]
         if off == 0 or cnt == 0:
@@ -118,9 +129,9 @@ class GeoTIFF:
                     for c in range(s + 1, s + w):
                         b[c] = (b[c] + b[c - 1]) & 0xFF
                 data = bytes(b)
-        if len(self.cache) > 64:
-            self.cache.clear()
         self.cache[i] = data
+        if len(self.cache) > 96:  # ~96 MB per open file at 1024x1024 blocks
+            self.cache.popitem(last=False)
         return data
 
     def window(self, x0, y1, w, h, fill=255):
@@ -146,7 +157,7 @@ def mosaic(paths, x0, y1, w, h, fill=255):
     """The same window read across several tiles (first non-fill wins)."""
     out = bytearray([fill]) * (w * h)
     for p in paths:
-        part = GeoTIFF(p).window(x0, y1, w, h, fill)
+        part = open_tif(p).window(x0, y1, w, h, fill)
         for i, v in enumerate(part):
             if v != fill and out[i] == fill:
                 out[i] = v

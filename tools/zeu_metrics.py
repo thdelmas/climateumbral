@@ -24,6 +24,13 @@ Usage:
 the open image service: that is how the official years (CLC+ 2023, TCD
 2024) come in, since only older years are served openly.
 
+    python3 zeu_metrics.py ZEU.gpkg ALL --tiles DIR --ref-csv REF.csv --csv OUT.csv
+
+ALL runs every ZEU in the file against local tiles laid out as
+fetch_clms.py writes them (DIR/clc/2023/<tile>/..., DIR/tcd/2024/<tile>/...),
+in tile order so each compressed block is decoded once. OUT.csv is written
+row by row and resumed: ids already in it are skipped.
+
 Example (Barcelona):
     python3 zeu_metrics.py Limites_ZEU_2024_100K_ES.gpkg ES_08019 \\
         --clc 2021 --tcd 2018 --ref 21.536 7.035037
@@ -32,7 +39,10 @@ Source: Copernicus Land Monitoring Service (CLC+ Backbone, HRL Tree Cover
 Density), adapted: clipped to the ZEU and summed.
 """
 import argparse
+import csv
+import glob
 import json
+import os
 import math
 import sqlite3
 import struct
@@ -191,6 +201,103 @@ def grid(url, x0, y1, w, h):
     return out
 
 
+def bbox_of(polys):
+    xs = [x for p in polys for ring in p for x, _ in ring]
+    ys = [y for p in polys for ring in p for _, y in ring]
+    x0 = math.floor(min(xs) / PIXEL) * PIXEL
+    y0 = math.floor(min(ys) / PIXEL) * PIXEL
+    x1 = math.ceil(max(xs) / PIXEL) * PIXEL
+    y1 = math.ceil(max(ys) / PIXEL) * PIXEL
+    return x0, y0, x1, y1
+
+
+def compute(polys, clc_read, tcd_read):
+    """clc_read / tcd_read: (x0, y1, w, h) -> bytes on the 10 m grid."""
+    x0, y0, x1, y1 = bbox_of(polys)
+    w, h = (x1 - x0) // PIXEL, (y1 - y0) // PIXEL
+    mask = mask_for(polys, x0, y1, w, h)
+    clc = clc_read(x0, y1, w, h)
+    tcd = tcd_read(x0, y1, w, h)
+    inside = evu_px = tcd_sum = tcd_nodata = clc_nodata = 0
+    for i in range(w * h):
+        if not mask[i]:
+            continue
+        inside += 1
+        c = clc[i]
+        if c in GREEN_CLASSES:
+            evu_px += 1
+        elif c == 0 or c > 11:
+            clc_nodata += 1
+        t = tcd[i]
+        if t <= 100:
+            tcd_sum += t
+        else:
+            tcd_nodata += 1
+    area = inside * PIXEL * PIXEL / 1e6
+    evu = evu_px * PIXEL * PIXEL / 1e6
+    cau = tcd_sum / 1e6  # each % point of a 100 m2 pixel = 1 m2
+    return {"zeu_area_km2_pixels": round(area, 3),
+            "evu_km2": round(evu, 4), "evu_pct": round(100 * evu / area, 3) if area else None,
+            "cau_km2": round(cau, 4), "cau_pct": round(100 * cau / area, 3) if area else None,
+            "clc_nodata_px": clc_nodata, "tcd_nodata_px": tcd_nodata, "grid": [w, h]}
+
+
+def tiles_in(root, x0, y0, x1, y1):
+    out = []
+    for tx in range(int(x0) // 100000, int(x1 - 1) // 100000 + 1):
+        for ty in range(int(y0) // 100000, int(y1 - 1) // 100000 + 1):
+            out += glob.glob(os.path.join(root, f"E{tx}N{ty}", "**", "*.tif"), recursive=True)
+    return out
+
+
+def run_all(a):
+    con = sqlite3.connect(a.zeu)
+    (table,), = con.execute("select table_name from gpkg_contents where data_type='features'").fetchall()
+    ids = [r[0] for r in con.execute(f"select GISCO_ID from '{table}'")]
+    refs = {}
+    if a.ref_csv:
+        with open(a.ref_csv) as f:
+            refs = {r["gisco_id"]: r for r in csv.DictReader(f)}
+    done = set()
+    if os.path.exists(a.csv):
+        with open(a.csv) as f:
+            done = {r["gisco_id"] for r in csv.DictReader(f)}
+    items = []
+    for gid in ids:
+        if gid in done:
+            continue
+        rec, polys = load_zeu(a.zeu, gid)
+        items.append((bbox_of(polys), gid, rec, polys))
+    items.sort(key=lambda t: (t[0][0] // 100000, t[0][1] // 100000, t[0][0]))
+    clc_root = os.path.join(a.tiles, "clc", a.clc_year)
+    tcd_root = os.path.join(a.tiles, "tcd", a.tcd_year)
+    fields = ["gisco_id", "name", "degurba", "zeu_area_km2_official", "zeu_area_km2_pixels",
+              "evu_km2", "evu_pct", "cau_km2", "cau_pct", "ref_evu_km2", "ref_cau_km2",
+              "evu_diff_pct", "cau_diff_pct", "clc_nodata_px", "tcd_nodata_px", "note"]
+    new = not os.path.exists(a.csv)
+    with open(a.csv, "a", newline="") as fo:
+        w = csv.DictWriter(fo, fieldnames=fields, extrasaction="ignore")
+        if new:
+            w.writeheader()
+        for n, (bb, gid, rec, polys) in enumerate(items, 1):
+            ct, tt = tiles_in(clc_root, *bb), tiles_in(tcd_root, *bb)
+            row = {"gisco_id": gid, "name": rec.get("LAU_NAME"), "degurba": rec.get("DEGURBA"),
+                   "zeu_area_km2_official": rec.get("Area_UA_km2")}
+            if not ct or not tt:
+                row["note"] = "missing tiles: " + ("clc " if not ct else "") + ("tcd" if not tt else "")
+            else:
+                row.update(compute(polys, lambda *g: mosaic(ct, *g), lambda *g: mosaic(tt, *g)))
+                ref = refs.get(gid)
+                if ref:
+                    re_, rc = float(ref["evu_km2"]), float(ref["cau_km2"])
+                    row.update(ref_evu_km2=re_, ref_cau_km2=rc,
+                               evu_diff_pct=round(100 * (row["evu_km2"] - re_) / re_, 2) if re_ else None,
+                               cau_diff_pct=round(100 * (row["cau_km2"] - rc) / rc, 2) if rc else None)
+            w.writerow(row)
+            fo.flush()
+            print(f"{n}/{len(items)} {gid} {row.get('name')} evu {row.get('evu_diff_pct')} cau {row.get('cau_diff_pct')} {row.get('note') or ''}", flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("zeu")
@@ -202,7 +309,16 @@ def main():
     ap.add_argument("--ref", nargs=2, type=float, metavar=("EVU_KM2", "CAU_KM2"),
                     help="official values to compare against")
     ap.add_argument("--json", help="write the result here")
+    ap.add_argument("--tiles", help="ALL: tile root written by fetch_clms.py")
+    ap.add_argument("--clc-year", default="2023")
+    ap.add_argument("--tcd-year", default="2024")
+    ap.add_argument("--ref-csv", help="ALL: official values (gisco_id, evu_km2, cau_km2)")
+    ap.add_argument("--csv", help="ALL: output CSV (resumed)")
     a = ap.parse_args()
+    if a.gisco_id == "ALL":
+        if not (a.tiles and a.csv):
+            sys.exit("ALL needs --tiles and --csv")
+        return run_all(a)
 
     rec, polys = load_zeu(a.zeu, a.gisco_id)
     xs = [x for p in polys for ring in p for x, _ in ring]
