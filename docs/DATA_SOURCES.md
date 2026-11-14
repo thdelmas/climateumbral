@@ -392,6 +392,52 @@ shows the observation time, never "now".
 5. Missing temps are empty fields; a bad parse reads them as 0 °C —
    skip, never zero. Sanity-clamp to −60…60.
 
+## Urban green space and tree canopy: the Nature Restoration Regulation numbers
+
+Reg. (EU) 2024/1991 art. 8 counts urban green space (EVU) and urban tree
+canopy cover (CAU) inside each urban ecosystem area (ZEU). Spain's method
+(MITECO municipal guide, 2026): EPSG:3035, 10 m pixels, zonal sums.
+
+- **EVU** = CLC+ Backbone pixels in classes 2, 3, 4 (trees), 5 (shrubs),
+  6 (permanent herbaceous), 8 (lichens, mosses), 10 (water), × 100 m².
+  Reference year 2023. Class 7 (periodically herbaceous, i.e. crops) is
+  NOT green space.
+- **CAU** = sum of HRL Tree Cover Density values (0-100 % per pixel), ×
+  1 m² per percent point. Reference year 2024.
+- **ZEU boundaries (Spain):** MITECO ships them inside its templates zip
+  ("Guía del formato uniforme, cartografía y plantillas", municipal page of
+  the national restoration plan): `Límites_ZEU_2024_100K_ES.gpkg`, layer
+  `B1` (urban centres + clusters), 1,342 rows, EPSG:3035, fields
+  `GISCO_ID` (e.g. `ES_08019`), `LAU_NAME`, `DEGURBA`, `Area_UA_km2`. The
+  official per-municipality values are a PDF on the same page ("Valores de
+  referencia definitivos").
+- `tools/zeu_metrics.py` reproduces both numbers for one ZEU (stdlib only).
+
+Where each layer lives (checked 2026-11-14):
+
+| Layer | Open EEA image service (no account) | Official year |
+|---|---|---|
+| CLC+ Backbone | 2018 and 2021, `CLC_plus/CLMS_CLCplus_RASTER_<year>_010m_eu` | 2023: WEkEO only (`EO:EEA:DAT:CLC-PLUS`, account) |
+| HRL Tree Cover Density | 2018 only (`GioLandPublic/HRL_TreeCoverDensity_2018`), the old product | 2018-present yearly 10 m ("VLCC" product): Copernicus Data Space S3 `eodata/CLMS/landcover_landuse/tree_cover_density/...`, account; tile list is a public CSV |
+| HRL Imperviousness | 2018 (what the map uses today) | 2024 + change 2021-24: WEkEO only (`EO:EEA:DAT:HRL:IMP`, account) |
+
+Licence: free, full and open, commercial use included, on three conditions:
+name the source, state that the data was adapted, never imply EU
+endorsement.
+
+### Its traps
+
+1. **TCD 2018 is not comparable with TCD 2024.** The yearly 10 m product
+   is a new method. On the open 2018 layer CAU runs +3 % (Girona) to
+   +101 % (Madrid) above the official 2024 values; only the 2024 layer can
+   pass a comparison.
+2. **CLC+ 2021 is close to 2023 but not everywhere.** EVU vs official:
+   Barcelona +0.5 %, Girona −0.8 %, Madrid +2.9 %, València −12.7 %.
+3. **Pixel area must match the official ZEU area.** Pixel-centre-inside
+   rasterisation on the 10 m 3035 grid gives 78.207 km² for Barcelona
+   (official 78.208), 283.361 for Madrid (283.362). A gap there means a
+   projection or alignment bug, not a data-year gap.
+
 ## Adjacent sources (unverified, for later)
 
 - EEA soil-sealing dashboard (context/stats): eea.europa.eu

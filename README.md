@@ -115,6 +115,10 @@ gray-touching-green candidate detector (227 pixels = 2.3 ha found).
 `tools/fetch_grid.py` — sealed-% grid + sea mask for any EU bounding
 box. Pure Python 3, zero dependencies.
 
+`tools/zeu_metrics.py` — urban green space (EVU) and tree canopy (CAU)
+for one urban ecosystem area, the way Reg. (EU) 2024/1991 art. 8 counts
+them (see `docs/DATA_SOURCES.md`). Pure Python 3, zero dependencies.
+
 ```
 python3 tools/fetch_grid.py 2.14 41.375 2.19 41.41 -o bcn
 # -> bcn.raw (U8 grid, row 0 = north), bcn.json (metadata + stats)
